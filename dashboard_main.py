@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from supabase import create_client
 import plotly.graph_objects as go
-from itertools import combinations
+import random
 
 # --- CONNESSIONE DATABASE ---
 try:
@@ -15,7 +15,7 @@ except KeyError:
 
 supabase = create_client(URL, KEY)
 
-# --- MOTORE TOPOLOGICO ---
+# --- MOTORE TOPOLOGICO AVANZATO ---
 def calcola_rugosita(sestina):
     s_ord = sorted(sestina)
     diffs = np.diff(s_ord)
@@ -23,7 +23,7 @@ def calcola_rugosita(sestina):
     return np.std(diffs) / mu if mu != 0 else 0
 
 @st.cache_data(ttl=600) 
-def load_and_analyze_deltas():
+def load_and_analyze_physical_limits():
     res = supabase.table("estrazioni").select("*").order("data_estrazione", desc=True).limit(1781).execute()
     data_df = pd.DataFrame(res.data)
     data_df['H'] = data_df.apply(lambda r: calcola_rugosita([r.n1, r.n2, r.n3, r.n4, r.n5, r.n6]), axis=1)
@@ -33,80 +33,66 @@ def load_and_analyze_deltas():
         fetta = data_df['H'].iloc[i*137 : (i+1)*137]
         if not fetta.empty: medie.append(fetta.mean())
     
-    # Calcolo Delta tra blocchi consecutivi
-    deltas = np.diff(medie[::-1]) # Invertiamo per avere l'ordine cronologico
+    deltas = np.diff(medie[::-1])
     return data_df, medie, deltas
 
-# --- UI SETUP ---
-st.set_page_config(page_title="Parisi-137 Kostante", layout="wide")
-st.title("🔬 Generatore di Fase: Kostante dei Delta")
+# --- INTERFACCIA ---
+st.set_page_config(page_title="Parisi-137 Complementary", layout="wide")
+st.title("🔬 Motore a Sestine Complementari: Vincolo Delta")
 
 try:
-    df, medie_blocchi, deltas = load_and_analyze_deltas()
+    df, medie_blocchi, deltas = load_and_analyze_physical_limits()
     
-    # 1. DEFINIZIONE KOSTANTE DINAMICA
-    H_target_medio = np.mean(medie_blocchi)
-    ultimo_h_blocco = medie_blocchi[0]
-    squilibrio = ultimo_h_blocco - H_target_medio
+    # PARAMETRI DI VINCOLO
+    d_max, d_min = np.max(deltas), np.min(deltas)
+    h_medio_storico = np.mean(medie_blocchi)
+    h_ultimo_blocco = medie_blocchi[0]
     
-    # La Kostante corretta: deve compensare lo squilibrio attuale
-    Kostante_Operativa = H_target_medio - squilibrio 
+    # Rappresentazione Grafica dei Vincoli
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Delta Max Storico", f"{d_max:.4f}")
+    c2.metric("Delta Min Storico", f"{d_min:.4f}")
+    c3.metric("H Attuale (Blocco 137)", f"{h_ultimo_blocco:.4f}")
+
+    st.subheader("🧬 Ricerca Sestine Complementari (Bilancio Dinamico)")
     
-    # UI Metrics
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Squilibrio Attuale", f"{squilibrio:.4f}", delta=f"{squilibrio:.4f}", delta_color="inverse")
-    c2.metric("Kostante Target", f"{Kostante_Operativa:.4f}")
-    c3.metric("Ultima Estrazione", df['data_estrazione'].iloc[0])
-    c4.metric("Delta Medio", f"{np.mean(np.abs(deltas)):.4f}")
-
-    # 2. VISUALIZZAZIONE DELTA
-    st.subheader("📉 Analisi delle Tensioni (13 Delta Storici)")
-    fig_delta = go.Figure(data=[go.Scatter(y=deltas, mode='lines+markers', line=dict(color='#ff9900'))])
-    fig_delta.add_hline(y=0, line_dash="dash", line_color="white")
-    fig_delta.update_layout(template="plotly_dark", height=250, margin=dict(l=20, r=20, t=20, b=20))
-    st.plotly_chart(fig_delta, use_container_width=True)
-
-    st.divider()
-
-    # 3. GENERAZIONE SESTINE IN RISONANZA
-    col_sx, col_dx = st.columns([1, 1])
-
-    with col_sx:
-        st.subheader("🧩 Selezione Pivot")
-        ultima_sestina = df[['n1', 'n2', 'n3', 'n4', 'n5', 'n6']].iloc[0].values
+    # Recuperiamo le ultime 136 estrazioni (il "corpo" del blocco attuale)
+    corpo_136 = df['H'].iloc[1:137].tolist()
+    
+    # Simulazione intelligente invece di combinazioni infinite
+    sestine_valide = []
+    
+    # Tentiamo 50.000 combinazioni casuali ma distribuite per trovare le "complementari"
+    for _ in range(50000):
+        # Generiamo una sestina con spaziatura minima per evitare sequenze "finte"
+        s = sorted(random.sample(range(1, 91), 6))
+        if any(np.diff(s) < 2): continue # Salta se ci sono numeri consecutivi
         
-        # Troviamo i 12 numeri che singolarmente avvicinano il blocco alla Kostante
-        candidati = []
-        for n in range(1, 91):
-            if n not in ultima_sestina:
-                test_h = calcola_rugosita(list(ultima_sestina[1:]) + [n])
-                dist = abs(test_h - Kostante_Operativa)
-                candidati.append((n, dist))
+        h_sestina = calcola_rugosita(s)
+        nuova_media_blocco = np.mean(corpo_136 + [h_sestina])
+        nuovo_delta = nuova_media_blocco - medie_blocchi[1] # Delta rispetto al blocco precedente
         
-        candidati.sort(key=lambda x: x[1])
-        pivot_12 = [x[0] for x in candidati[:12]]
-        st.write("I 12 numeri con massima forza di richiamo:")
-        st.code(pivot_12)
+        # IL FILTRO DI PARISI: Deve stare nei limiti dei delta storici
+        if d_min <= nuovo_delta <= d_max:
+            # Calcoliamo quanto questa sestina sposta il sistema verso la media storica
+            scostamento = abs(nuova_media_blocco - h_medio_storico)
+            sestine_valide.append((s, scostamento, nuovo_delta))
 
-    with col_dx:
-        st.subheader("💎 Sestine in Fase (Errore < 0.0001)")
-        # Generiamo sestine partendo dai pivot e testiamo l'impatto sul blocco
-        sestine_finali = []
-        # Prendiamo le combinazioni dei primi 9 pivot per limitare il calcolo a ~84 combinazioni
-        for comb in combinations(pivot_12[:9], 6):
-            h_sestina = calcola_rugosita(comb)
-            # Verifichiamo se questa sestina "atterra" sulla Kostante
-            if abs(h_sestina - Kostante_Operativa) < 0.005: # Margine di tolleranza per la visualizzazione
-                sestine_finali.append((comb, abs(h_sestina - Kostante_Operativa)))
+    # Ordiniamo per la massima precisione verso l'equilibrio
+    sestine_valide.sort(key=lambda x: x[1])
+
+    if sestine_valide:
+        st.success(f"Identificate {len(sestine_valide)} sestine fisicamente compatibili.")
         
-        sestine_finali.sort(key=lambda x: x[1])
-        
-        if sestine_finali:
-            for i, (s, err) in enumerate(sestine_finali[:5]):
-                st.success(f"Sestina {i+1} (Scarto: {err:.5f})")
-                st.code(sorted(s))
-        else:
-            st.warning("Nessuna sestina soddisfa il bilancio dei delta. Prova ad allargare i Pivot.")
+        # Mostriamo le top 6 in un formato pulito
+        cols = st.columns(2)
+        for idx, (s, err, d) in enumerate(sestine_valide[:6]):
+            with cols[idx % 2]:
+                st.write(f"**Sestina Complementare {idx+1}**")
+                st.code(f"{s} | Delta: {d:.5f}")
+                st.caption(f"Precisione Equilibrio: {100 - (err*100):.2f}%")
+    else:
+        st.warning("Nessuna sestina trovata con i parametri di vincolo attuali. Il sistema è in una fase di alta tensione.")
 
 except Exception as e:
-    st.error(f"Errore nel motore di calcolo: {e}")
+    st.error(f"Errore: {e}")
