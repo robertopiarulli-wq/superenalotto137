@@ -45,7 +45,7 @@ try:
     h_136_attuale = df_full['H'].iloc[0]
     target_h = df_full['H'].iloc[0:136].mean() * Q_medio
     # Manteniamo la morsa allo 0.01% per avere un campione statistico valido
-    morsa_millimetrica = target_h * 0.001 
+    morsa_millimetrica = target_h * 0.01 
 
     st.success(f"Bersaglio H: {target_h:.6f} | Delta Atteso: {Delta_medio:.6f}")
 
