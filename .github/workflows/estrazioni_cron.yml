@@ -2,10 +2,8 @@ name: Superenalotto Armonia 137 Update
 
 on:
   schedule:
-    # Esegue alle 20:30 UTC (22:30 italiane) nei giorni di estrazione:
-    # Martedì (2), Giovedì (4), Venerdì (5), Sabato (6)
     - cron: '30 20 * * 2,4,5,6'
-  workflow_dispatch: # Ti permette di lanciarlo a mano per testare
+  workflow_dispatch: 
 
 jobs:
   build_and_run:
@@ -19,7 +17,6 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-          cache: 'pip' # Velocizza le esecuzioni successive
 
       - name: Installa Dipendenze
         run: |
@@ -30,11 +27,3 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python update_estrazioni.py
-
-      - name: Verifica Stato Armonico (Analisi 13 Blocchi)
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        # Questo comando lo aggiungeremo non appena avrai creato il file di analisi
-        run: |
-          echo "Dati aggiornati. Pronto per il calcolo della Rugosità di Parisi."
