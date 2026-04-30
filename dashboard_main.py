@@ -53,7 +53,7 @@ try:
     # PARAMETRI TARGET
     target_h = media_attuale_136 * Q_medio
     # MORSA MILLIMETRICA: 0.01%
-    morsa_millimetrica = target_h * 0.00001 
+    morsa_millimetrica = target_h * 0.0001 
 
     st.success(f"Analisi completata. Legge Universale stabilita su {len(df_full)-137} cicli.")
     c1, c2, c3 = st.columns(3)
