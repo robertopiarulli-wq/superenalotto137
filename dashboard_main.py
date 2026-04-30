@@ -15,7 +15,7 @@ except KeyError:
 
 supabase = create_client(URL, KEY)
 
-# --- MOTORE TOPOLOGICO E SCANSIONE QUID ---
+# --- MOTORE TOPOLOGICO E SCANSIONE QUID UNIVERSALE ---
 def calcola_rugosita(sestina):
     """Calcola la rugosità H basata sulla deviazione standard dei gap."""
     s_ord = sorted(sestina)
@@ -25,7 +25,7 @@ def calcola_rugosita(sestina):
 
 @st.cache_data(ttl=3600) 
 def analizza_legge_universale():
-    """Scansiona il DB con finestra mobile di 137 estrazioni."""
+    """Scansiona il DB con finestra mobile di 137 estrazioni per estrarre il Quid."""
     res = supabase.table("estrazioni").select("*").order("data_estrazione", desc=True).execute()
     full_df = pd.DataFrame(res.data)
     
@@ -34,11 +34,10 @@ def analizza_legge_universale():
     
     quid_universali = []
     
-    # IL CUORE DEL RAGIONAMENTO: 
-    # Ci fermiamo a len(df) - 137 per avere solo blocchi integri 136+1.
+    # FRENO A MANO 137: Ci fermiamo prima che i dati diventino insufficienti per un blocco integro.
     for i in range(len(full_df) - 137):
-        h_chiusura = full_df['H'].iloc[i]             # La "137-esima" del ciclo i
-        h_precedenti = full_df['H'].iloc[i+1 : i+137]   # Il corpo di 136 estrazioni
+        h_chiusura = full_df['H'].iloc[i]             # La "137-esima" di quel ciclo storico
+        h_precedenti = full_df['H'].iloc[i+1 : i+137]   # Il corpo di 136 estrazioni precedenti
         
         media_corpo = h_precedenti.mean()
         if media_corpo != 0:
@@ -47,63 +46,68 @@ def analizza_legge_universale():
     return full_df, np.mean(quid_universali), np.std(quid_universali)
 
 # --- INTERFACCIA STREAMLIT ---
-st.set_page_config(page_title="Parisi-137 Entropy Free", layout="wide")
-st.title("🔬 Sistema Parisi-137: Libertà Entropica")
+st.set_page_config(page_title="Parisi-137 Deep Scan", layout="wide")
+st.title("🔬 Sistema Parisi-137: Sintesi Totale in Libertà Entropica")
 
 try:
     with st.spinner("Scansione della memoria storica totale (Finestra Mobile 137)..."):
         df_full, Q_medio, Q_std = analizza_legge_universale()
     
     # 1. ANALISI DELLE ULTIME 136 REALI (Il Presente)
+    # Prendiamo le estrazioni da 0 a 135 (le 136 effettive caricate di tensione).
     corpo_attuale_136 = df_full['H'].iloc[0:136]
     media_attuale = corpo_attuale_136.mean()
     
-    # Calcolo del Bersaglio per la prossima estrazione (la numero 137)
+    # Calcolo del Bersaglio Fisico (Quid Universale applicato al presente)
     h_target_prossima = media_attuale * Q_medio
     tolleranza_reale = Q_std * media_attuale
     
     # Dashboard Metriche
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Quid Medio Universale (Q)", f"{Q_medio:.4f}")
+    c1.metric("Quid Medio (Q)", f"{Q_medio:.4f}")
     c2.metric("Target Rugosità (H)", f"{h_target_prossima:.4f}")
-    c3.metric("Banda di Risonanza (±)", f"{tolleranza_reale:.4f}")
+    c3.metric("Banda Risonanza (±)", f"{tolleranza_reale:.4f}")
     c4.metric("Cicli Analizzati", f"{len(df_full)-137}")
 
     st.divider()
 
-    # 2. MOTORE DI SINTESI IN LIBERTÀ ENTROPICA
-    st.subheader("🧬 Generazione Sestine (Senza Filtri di Prossimità)")
+    # 2. MOTORE DI SINTESI PROFONDA (1.000.000 DI TENTATIVI)
+    st.subheader(f"🧬 Esplorazione Spazio delle Fasi: 1.000.000 di campioni")
     
     sestine_risultanti = []
+    numero_tentativi = 1000000
     
-    with st.spinner("Sintetizzando configurazioni in puro equilibrio dinamico..."):
-        for _ in range(300000):
+    with st.spinner("Elaborazione in corso..."):
+        for _ in range(numero_tentativi):
             s = sorted(random.sample(range(1, 91), 6))
             
-            # FILTRO RILASSATO: Abbiamo rimosso diffs < 2.
-            # Lasciamo solo un controllo sulla variabilità minima per evitare H=0.
+            # LIBERTÀ ENTROPICA: Nessun filtro sui numeri consecutivi.
+            # Unico vincolo: variabilità minima per evitare sestine matematicamente piatte.
             if np.std(np.diff(s)) < 0.5: continue 
             
             h_sestina = calcola_rugosita(s)
             
-            # Verifica aderenza al Quid Universale
+            # La sestina deve entrare nella risonanza del Quid Universale
             if abs(h_sestina - h_target_prossima) < tolleranza_reale:
                 errore = abs(h_sestina - h_target_prossima)
                 sestine_risultanti.append((s, errore, h_sestina))
 
-    # Ordiniamo per la massima precisione rispetto al bersaglio
+    # ORDINAMENTO CHIRURGICO: Le soluzioni più precise in cima alla lista[cite: 1, 2].
     sestine_risultanti.sort(key=lambda x: x[1])
 
-    # 3. VISUALIZZAZIONE RISULTATI
+    # 3. VISUALIZZAZIONE RISULTATI TOTALI
     if sestine_risultanti:
+        st.info(f"Trovate {len(sestine_risultanti)} combinazioni armoniche su {numero_tentativi} tentativi.")
+        
         cols = st.columns(2)
-        for idx, (s, err, h_val) in enumerate(sestine_risultanti[:10]):
+        # Mostriamo tutte le soluzioni senza il limite di 10
+        for idx, (s, err, h_val) in enumerate(sestine_risultanti):
             with cols[idx % 2]:
                 st.success(f"**Sestina Specchio {idx+1}**")
                 st.code(f"{s}")
-                st.caption(f"H Sestina: {h_val:.5f} | Deviazione dal Q: {err:.6f}")
+                st.caption(f"Rugosità H: {h_val:.6f} | Errore Assoluto: {err:.8f}")
     else:
-        st.warning("Il sistema non ha trovato punti di equilibrio nella banda attuale. Prova a ricaricare.")
+        st.error("Nessun punto di risonanza trovato. La morsa del sistema è attualmente impenetrabile.")
 
 except Exception as e:
-    st.error(f"Errore critico: {e}")
+    st.error(f"Errore durante la sintesi profonda: {e}")
