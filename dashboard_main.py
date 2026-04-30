@@ -29,7 +29,7 @@ def analizza_legge_universale():
     res = supabase.table("estrazioni").select("*").order("data_estrazione", desc=True).execute()
     full_df = pd.DataFrame(res.data)
     
-    # Pre-calcolo rugosità per tutto il database
+    # Pre-calcolo rugosità H per tutto il database
     full_df['H'] = full_df.apply(lambda r: calcola_rugosita([r.n1, r.n2, r.n3, r.n4, r.n5, r.n6]), axis=1)
     
     quid_universali = []
@@ -47,15 +47,14 @@ def analizza_legge_universale():
     return full_df, np.mean(quid_universali), np.std(quid_universali)
 
 # --- INTERFACCIA STREAMLIT ---
-st.set_page_config(page_title="Parisi-137 Universal Law", layout="wide")
-st.title("🔬 Sistema Parisi-137: Legge del Quid Universale")
+st.set_page_config(page_title="Parisi-137 Entropy Free", layout="wide")
+st.title("🔬 Sistema Parisi-137: Libertà Entropica")
 
 try:
     with st.spinner("Scansione della memoria storica totale (Finestra Mobile 137)..."):
         df_full, Q_medio, Q_std = analizza_legge_universale()
     
     # 1. ANALISI DELLE ULTIME 136 REALI (Il Presente)
-    # Prendiamo le estrazioni da 0 a 135 (le ultime 136 uscite).
     corpo_attuale_136 = df_full['H'].iloc[0:136]
     media_attuale = corpo_attuale_136.mean()
     
@@ -72,40 +71,39 @@ try:
 
     st.divider()
 
-    # 2. MOTORE DI SINTESI DELLE SESTINE SPECCHIO
-    st.subheader("🧬 Generazione Sestine di Chiusura Ciclo")
+    # 2. MOTORE DI SINTESI IN LIBERTÀ ENTROPICA
+    st.subheader("🧬 Generazione Sestine (Senza Filtri di Prossimità)")
     
     sestine_risultanti = []
     
-    with st.spinner("Sintetizzando configurazioni compatibili con la legge Q..."):
-        # Tentativi massicci per trovare la precisione millimetrica
-        for _ in range(250000):
+    with st.spinner("Sintetizzando configurazioni in puro equilibrio dinamico..."):
+        for _ in range(300000):
             s = sorted(random.sample(range(1, 91), 6))
             
-            # Filtro Struttura Fine (evitiamo numeri consecutivi e troppa simmetria)
-            diffs = np.diff(s)
-            if any(diffs < 2) or np.std(diffs) < 1.5: continue 
+            # FILTRO RILASSATO: Abbiamo rimosso diffs < 2.
+            # Lasciamo solo un controllo sulla variabilità minima per evitare H=0.
+            if np.std(np.diff(s)) < 0.5: continue 
             
             h_sestina = calcola_rugosita(s)
             
-            # La sestina deve "fittare" perfettamente nel bersaglio Q.
+            # Verifica aderenza al Quid Universale
             if abs(h_sestina - h_target_prossima) < tolleranza_reale:
                 errore = abs(h_sestina - h_target_prossima)
                 sestine_risultanti.append((s, errore, h_sestina))
 
-    # Ordiniamo per la minima distanza dal target ideale
+    # Ordiniamo per la massima precisione rispetto al bersaglio
     sestine_risultanti.sort(key=lambda x: x[1])
 
     # 3. VISUALIZZAZIONE RISULTATI
     if sestine_risultanti:
         cols = st.columns(2)
-        for idx, (s, err, h_val) in enumerate(sestine_risultanti[:8]):
+        for idx, (s, err, h_val) in enumerate(sestine_risultanti[:10]):
             with cols[idx % 2]:
                 st.success(f"**Sestina Specchio {idx+1}**")
                 st.code(f"{s}")
                 st.caption(f"H Sestina: {h_val:.5f} | Deviazione dal Q: {err:.6f}")
     else:
-        st.warning("Nessuna sestina trovata. Il sistema richiede una precisione di rientro superiore. Prova a ricaricare.")
+        st.warning("Il sistema non ha trovato punti di equilibrio nella banda attuale. Prova a ricaricare.")
 
 except Exception as e:
-    st.error(f"Errore critico nel calcolo della finestra mobile: {e}")
+    st.error(f"Errore critico: {e}")
