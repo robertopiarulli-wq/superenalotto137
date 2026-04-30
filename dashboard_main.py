@@ -61,7 +61,7 @@ try:
             if n not in ultima_sestina:
                 test_s = list(ultima_sestina[1:]) + [n]
                 h_test = calcola_rugosita(test_s)
-                if abs(h_test - 0.137) < (delta_risonanza * 0.5):
+                if abs(h_test - 0.137) < (delta_risonanza * 0.8):
                     candidati_potenziali.append((n, h_test))
         
         candidati_potenziali.sort(key=lambda x: abs(x[1] - 0.137))
