@@ -53,7 +53,7 @@ try:
     # DEFINIZIONE TARGET
     target_h = media_attuale_136 * Q_medio
     # MORSA D'ÉLITE: Restringiamo allo 0.5% del valore target
-    morsa_selettiva = target_h * 0.005 
+    morsa_selettiva = target_h * 0.001 
 
     st.success(f"Analisi completata su {len(df_full)-137} cicli.")
     col1, col2, col3 = st.columns(3)
@@ -66,7 +66,7 @@ try:
     # --- MOTORE DI SINTESI AD ALTA PRESSIONE ---
     if st.button("Esegui Sintesi d'Élite (200.000 cicli)"):
         sestine_risultanti = []
-        n_tentativi = 200000
+        n_tentativi = 800000
         prog_bar = st.progress(0)
         
         for i in range(n_tentativi):
