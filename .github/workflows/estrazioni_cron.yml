@@ -2,8 +2,10 @@ name: Superenalotto Armonia 137 Update
 
 on:
   schedule:
+    # Esecuzione alle 20:30 UTC (circa 22:30 ora italiana) 
+    # nei giorni di estrazione: Martedì, Giovedì, Venerdì, Sabato.
     - cron: '30 20 * * 2,4,5,6'
-  workflow_dispatch: 
+  workflow_dispatch: # Permette l'avvio manuale dal tasto "Run workflow"
 
 jobs:
   build_and_run:
@@ -20,7 +22,8 @@ jobs:
 
       - name: Installa Dipendenze
         run: |
-          pip install pandas supabase requests numpy
+          python -m pip install --upgrade pip
+          pip install pandas supabase requests numpy beautifulsoup4
 
       - name: Esecuzione Update Database
         env:
