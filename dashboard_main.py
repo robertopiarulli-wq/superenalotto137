@@ -10,97 +10,102 @@ try:
     URL = st.secrets["URL_SUPABASE"]
     KEY = st.secrets["KEY_SUPABASE"]
 except KeyError:
-    st.error("Configurazione Segreti mancante.")
+    st.error("Configurazione Segreti mancante nei secrets di Streamlit.")
     st.stop()
 
 supabase = create_client(URL, KEY)
 
-# --- MOTORE TOPOLOGICO ADATTIVO ---
+# --- MOTORE TOPOLOGICO E SCANSIONE QUID ---
 def calcola_rugosita(sestina):
+    """Calcola la rugosità H basata sulla deviazione standard dei gap."""
     s_ord = sorted(sestina)
     diffs = np.diff(s_ord)
     mu = np.mean(diffs)
     return np.std(diffs) / mu if mu != 0 else 0
 
-@st.cache_data(ttl=600) 
-def load_and_analyze_adaptive():
-    res = supabase.table("estrazioni").select("*").order("data_estrazione", desc=True).limit(1781).execute()
-    data_df = pd.DataFrame(res.data)
-    data_df['H'] = data_df.apply(lambda r: calcola_rugosita([r.n1, r.n2, r.n3, r.n4, r.n5, r.n6]), axis=1)
+@st.cache_data(ttl=3600) 
+def analizza_legge_universale():
+    """Scansiona il DB con finestra mobile di 137 estrazioni."""
+    res = supabase.table("estrazioni").select("*").order("data_estrazione", desc=True).execute()
+    full_df = pd.DataFrame(res.data)
     
-    medie = []
-    for i in range(13):
-        fetta = data_df['H'].iloc[i*137 : (i+1)*137]
-        if not fetta.empty: medie.append(fetta.mean())
+    # Pre-calcolo rugosità per tutto il database
+    full_df['H'] = full_df.apply(lambda r: calcola_rugosita([r.n1, r.n2, r.n3, r.n4, r.n5, r.n6]), axis=1)
     
-    deltas = np.diff(medie[::-1])
-    return data_df, medie, deltas
+    quid_universali = []
+    
+    # IL CUORE DEL RAGIONAMENTO: 
+    # Ci fermiamo a len(df) - 137 per avere solo blocchi integri 136+1.
+    for i in range(len(full_df) - 137):
+        h_chiusura = full_df['H'].iloc[i]             # La "137-esima" del ciclo i
+        h_precedenti = full_df['H'].iloc[i+1 : i+137]   # Il corpo di 136 estrazioni
+        
+        media_corpo = h_precedenti.mean()
+        if media_corpo != 0:
+            quid_universali.append(h_chiusura / media_corpo)
+            
+    return full_df, np.mean(quid_universali), np.std(quid_universali)
 
-# --- INTERFACCIA ---
-st.set_page_config(page_title="Parisi-137 Adaptive", layout="wide")
-st.title("🔬 Sintesi Complementare: Tolleranza Elastica")
+# --- INTERFACCIA STREAMLIT ---
+st.set_page_config(page_title="Parisi-137 Universal Law", layout="wide")
+st.title("🔬 Sistema Parisi-137: Legge del Quid Universale")
 
 try:
-    df, medie_blocchi, deltas = load_and_analyze_adaptive()
+    with st.spinner("Scansione della memoria storica totale (Finestra Mobile 137)..."):
+        df_full, Q_medio, Q_std = analizza_legge_universale()
     
-    # 1. CALCOLO DELLA TOLLERANZA DINAMICA
-    h_medio_storico = np.mean(medie_blocchi)
-    h_ultimo_blocco = medie_blocchi[0]
-    squilibrio = h_ultimo_blocco - h_medio_storico
-    target_delta = -squilibrio 
+    # 1. ANALISI DELLE ULTIME 136 REALI (Il Presente)
+    # Prendiamo le estrazioni da 0 a 135 (le ultime 136 uscite).
+    corpo_attuale_136 = df_full['H'].iloc[0:136]
+    media_attuale = corpo_attuale_136.mean()
     
-    # Usiamo la deviazione standard dei delta storici per definire la "banda di risonanza"
-    volatilita_storica = np.std(deltas)
-    tolleranza_elastica = volatilita_storica / 3  # Regolazione della sensibilità
+    # Calcolo del Bersaglio per la prossima estrazione (la numero 137)
+    h_target_prossima = media_attuale * Q_medio
+    tolleranza_reale = Q_std * media_attuale
     
+    # Dashboard Metriche
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Squilibrio", f"{squilibrio:.4f}")
-    c2.metric("Target Δ", f"{target_delta:.4f}")
-    c3.metric("Tolleranza (±)", f"{tolleranza_elastica:.4f}")
-    c4.metric("Volatilità Sistema", f"{volatilita_storica:.4f}")
+    c1.metric("Quid Medio Universale (Q)", f"{Q_medio:.4f}")
+    c2.metric("Target Rugosità (H)", f"{h_target_prossima:.4f}")
+    c3.metric("Banda di Risonanza (±)", f"{tolleranza_reale:.4f}")
+    c4.metric("Cicli Analizzati", f"{len(df_full)-137}")
 
     st.divider()
 
-    # 2. MOTORE DI SINTESI PLASMATO SULLA STRUTTURA FINE
-    corpo_136 = df['H'].iloc[1:137].tolist()
-    sestine_elette = []
+    # 2. MOTORE DI SINTESI DELLE SESTINE SPECCHIO
+    st.subheader("🧬 Generazione Sestine di Chiusura Ciclo")
     
-    with st.spinner("Ricerca in corso nella banda di risonanza..."):
-        # Portiamo a 200.000 i tentativi per esplorare meglio lo spazio dopo il rilassamento
-        for _ in range(200000):
+    sestine_risultanti = []
+    
+    with st.spinner("Sintetizzando configurazioni compatibili con la legge Q..."):
+        # Tentativi massicci per trovare la precisione millimetrica
+        for _ in range(250000):
             s = sorted(random.sample(range(1, 91), 6))
             
-            # FILTRO STRUTTURA FINE: Distanza minima e variabilità interna
+            # Filtro Struttura Fine (evitiamo numeri consecutivi e troppa simmetria)
             diffs = np.diff(s)
             if any(diffs < 2) or np.std(diffs) < 1.5: continue 
             
-            h_sest = calcola_rugosita(s)
-            nuova_media_blocco = np.mean(corpo_136 + [h_sest])
-            nuovo_delta = nuova_media_blocco - medie_blocchi[1]
+            h_sestina = calcola_rugosita(s)
             
-            # FILTRO DINAMICO: La morsa ora "respira" con il sistema
-            if abs(nuovo_delta - target_delta) < tolleranza_elastica:
-                distanza_equilibrio = abs(nuova_media_blocco - h_medio_storico)
-                sestine_elette.append((s, distanza_equilibrio, nuovo_delta))
+            # La sestina deve "fittare" perfettamente nel bersaglio Q.
+            if abs(h_sestina - h_target_prossima) < tolleranza_reale:
+                errore = abs(h_sestina - h_target_prossima)
+                sestine_risultanti.append((s, errore, h_sestina))
 
-    # Ordiniamo per chi si avvicina di più al cuore della Kostante
-    sestine_elette.sort(key=lambda x: x[1])
+    # Ordiniamo per la minima distanza dal target ideale
+    sestine_risultanti.sort(key=lambda x: x[1])
 
     # 3. VISUALIZZAZIONE RISULTATI
-    if sestine_elette:
-        st.subheader(f"💎 Sestine Complementari in Risonanza (Top {min(len(sestine_elette), 8)})")
-        
-        for i in range(0, min(len(sestine_elette), 8), 2):
-            col_a, col_b = st.columns(2)
-            for j, col in enumerate([col_a, col_b]):
-                if i+j < len(sestine_elette):
-                    s, err, d = sestine_elette[i+j]
-                    with col:
-                        st.success(f"**Soluzione di Fase {i+j+1}**")
-                        st.code(f"{s}")
-                        st.caption(f"Scostamento: {err:.6f} | Δ Generato: {d:.5f}")
+    if sestine_risultanti:
+        cols = st.columns(2)
+        for idx, (s, err, h_val) in enumerate(sestine_risultanti[:8]):
+            with cols[idx % 2]:
+                st.success(f"**Sestina Specchio {idx+1}**")
+                st.code(f"{s}")
+                st.caption(f"H Sestina: {h_val:.5f} | Deviazione dal Q: {err:.6f}")
     else:
-        st.warning("Il sistema è in una fase di tensione estrema. Anche con la tolleranza elastica non emergono soluzioni armoniche.")
+        st.warning("Nessuna sestina trovata. Il sistema richiede una precisione di rientro superiore. Prova a ricaricare.")
 
 except Exception as e:
-    st.error(f"Errore: {e}")
+    st.error(f"Errore critico nel calcolo della finestra mobile: {e}")
