@@ -3,18 +3,19 @@ import pandas as pd
 import numpy as np
 from supabase import create_client
 import plotly.graph_objects as go
+from itertools import combinations
 
-# --- CONFIGURAZIONE PROFESSIONALE ---
+# --- CONNESSIONE DATABASE ---
 try:
     URL = st.secrets["URL_SUPABASE"]
     KEY = st.secrets["KEY_SUPABASE"]
 except KeyError:
-    st.error("Configurazione Segreti mancante. Verifica i Secrets su Streamlit Cloud.")
+    st.error("Configurazione Segreti mancante.")
     st.stop()
 
 supabase = create_client(URL, KEY)
 
-# --- MOTORE DI CALCOLO (LOGICA PARISI) ---
+# --- MOTORE TOPOLOGICO ---
 def calcola_rugosita(sestina):
     s_ord = sorted(sestina)
     diffs = np.diff(s_ord)
@@ -22,100 +23,90 @@ def calcola_rugosita(sestina):
     return np.std(diffs) / mu if mu != 0 else 0
 
 @st.cache_data(ttl=600) 
-def load_and_process_multi_block():
-    # Carichiamo 13 blocchi da 137 estrazioni (totale 1781)
+def load_and_analyze_deltas():
     res = supabase.table("estrazioni").select("*").order("data_estrazione", desc=True).limit(1781).execute()
     data_df = pd.DataFrame(res.data)
-    
-    # Calcolo rugosità H per ogni estrazione
     data_df['H'] = data_df.apply(lambda r: calcola_rugosita([r.n1, r.n2, r.n3, r.n4, r.n5, r.n6]), axis=1)
     
-    # Calcolo della rugosità media per ciascuno dei 13 blocchi
-    medie_blocchi = []
+    medie = []
     for i in range(13):
-        inizio = i * 137
-        fine = (i + 1) * 137
-        fetta = data_df['H'].iloc[inizio:fine]
-        if not fetta.empty:
-            medie_blocchi.append(fetta.mean())
-            
-    return data_df, medie_blocchi
+        fetta = data_df['H'].iloc[i*137 : (i+1)*137]
+        if not fetta.empty: medie.append(fetta.mean())
+    
+    # Calcolo Delta tra blocchi consecutivi
+    deltas = np.diff(medie[::-1]) # Invertiamo per avere l'ordine cronologico
+    return data_df, medie, deltas
 
-# --- INTERFACCIA ---
-st.set_page_config(page_title="Parisi-137 Multi-Block", layout="wide", page_icon="🔬")
-st.title("🔬 Analisi Topologica: Costante dei 13 Blocchi")
+# --- UI SETUP ---
+st.set_page_config(page_title="Parisi-137 Kostante", layout="wide")
+st.title("🔬 Generatore di Fase: Kostante dei Delta")
 
 try:
-    df, medie_blocchi = load_and_process_multi_block()
+    df, medie_blocchi, deltas = load_and_analyze_deltas()
     
-    # CALCOLO DELLA BANDA DI RISONANZA (COSTANTE OPERATIVA)
-    H_costante = np.mean(medie_blocchi)
-    H_sigma = np.std(medie_blocchi)
-    H_min = H_costante - H_sigma
-    H_max = H_costante + H_sigma
+    # 1. DEFINIZIONE KOSTANTE DINAMICA
+    H_target_medio = np.mean(medie_blocchi)
+    ultimo_h_blocco = medie_blocchi[0]
+    squilibrio = ultimo_h_blocco - H_target_medio
     
-    # Rugosità attuale (ultimo blocco)
-    h_attuale = df['H'].head(137).mean()
+    # La Kostante corretta: deve compensare lo squilibrio attuale
+    Kostante_Operativa = H_target_medio - squilibrio 
+    
+    # UI Metrics
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Squilibrio Attuale", f"{squilibrio:.4f}", delta=f"{squilibrio:.4f}", delta_color="inverse")
+    c2.metric("Kostante Target", f"{Kostante_Operativa:.4f}")
+    c3.metric("Ultima Estrazione", df['data_estrazione'].iloc[0])
+    c4.metric("Delta Medio", f"{np.mean(np.abs(deltas)):.4f}")
 
-    # Layout Metrics
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Ultima Osservazione", df['data_estrazione'].iloc[0])
-    m2.metric("H Costante (Media 13)", f"{H_costante:.4f}")
-    m3.metric("Range Min", f"{H_min:.4f}")
-    m4.metric("Range Max", f"{H_max:.4f}")
-
-    # Oscilloscopio con Banda di Risonanza
-    st.subheader("📊 Oscilloscopio Multi-Fase (13 Blocchi)")
-    fig = go.Figure()
-    # Linea Rugosità
-    fig.add_trace(go.Scatter(x=df['data_estrazione'], y=df['H'], name="H", line=dict(color='#00d1ff', width=1)))
-    # Fascia di Risonanza (Min/Max)
-    fig.add_hrect(y0=H_min, y1=H_max, fillcolor="rgba(0, 255, 204, 0.1)", line_width=0, annotation_text="Banda di Risonanza")
-    # Linea Media Costante
-    fig.add_hline(y=H_costante, line_dash="dash", line_color="yellow", annotation_text="H Costante")
-    
-    fig.update_layout(template="plotly_dark", height=450)
-    st.plotly_chart(fig, use_container_width=True)
+    # 2. VISUALIZZAZIONE DELTA
+    st.subheader("📉 Analisi delle Tensioni (13 Delta Storici)")
+    fig_delta = go.Figure(data=[go.Scatter(y=deltas, mode='lines+markers', line=dict(color='#ff9900'))])
+    fig_delta.add_hline(y=0, line_dash="dash", line_color="white")
+    fig_delta.update_layout(template="plotly_dark", height=250, margin=dict(l=20, r=20, t=20, b=20))
+    st.plotly_chart(fig_delta, use_container_width=True)
 
     st.divider()
-    col_a, col_b = st.columns([1, 2])
-    
-    with col_a:
-        st.subheader("🧩 Candidati in Risonanza")
-        st.write(f"Numeri che portano il sistema nel range: **[{H_min:.3f} - {H_max:.3f}]**")
-        
+
+    # 3. GENERAZIONE SESTINE IN RISONANZA
+    col_sx, col_dx = st.columns([1, 1])
+
+    with col_sx:
+        st.subheader("🧩 Selezione Pivot")
         ultima_sestina = df[['n1', 'n2', 'n3', 'n4', 'n5', 'n6']].iloc[0].values
-        candidati_fase = []
         
+        # Troviamo i 12 numeri che singolarmente avvicinano il blocco alla Kostante
+        candidati = []
         for n in range(1, 91):
             if n not in ultima_sestina:
-                # Test di configurazione 136 + ?
-                test_s = list(ultima_sestina[1:]) + [n]
-                h_test = calcola_rugosita(test_s)
-                
-                # Accettiamo il numero se la sua rugosità cade nella banda dei 13 blocchi
-                if H_min <= h_test <= H_max:
-                    # Calcoliamo la distanza dal "cuore" della costante
-                    distanza = abs(h_test - H_costante)
-                    candidati_fase.append((n, distanza))
+                test_h = calcola_rugosita(list(ultima_sestina[1:]) + [n])
+                dist = abs(test_h - Kostante_Operativa)
+                candidati.append((n, dist))
         
-        # Ordiniamo per chi è più vicino al centro esatto della costante
-        candidati_fase.sort(key=lambda x: x[1])
-        finali = [x[0] for x in candidati_fase[:12]]
-        
-        if finali:
-            st.success(f"Trovate {len(finali)} assonanze nel range")
-            st.code(sorted(finali))
-        else:
-            st.warning("Nessun numero cade nel range di risonanza attuale.")
+        candidati.sort(key=lambda x: x[1])
+        pivot_12 = [x[0] for x in candidati[:12]]
+        st.write("I 12 numeri con massima forza di richiamo:")
+        st.code(pivot_12)
 
-    with col_b:
-        st.subheader("🌡️ Analisi Ciclica (I 13 Blocchi)")
-        # Istogramma delle medie dei 13 blocchi per vedere la stabilità
-        fig_blocchi = go.Figure(data=[go.Bar(x=[f"B{i+1}" for i in range(13)], y=medie_blocchi, marker_color='#636EFA')])
-        fig_blocchi.add_hline(y=H_costante, line_color="yellow", line_dash="dot")
-        fig_blocchi.update_layout(template="plotly_dark", height=300, title="Rugosità Media per Ciclo")
-        st.plotly_chart(fig_blocchi, use_container_width=True)
+    with col_dx:
+        st.subheader("💎 Sestine in Fase (Errore < 0.0001)")
+        # Generiamo sestine partendo dai pivot e testiamo l'impatto sul blocco
+        sestine_finali = []
+        # Prendiamo le combinazioni dei primi 9 pivot per limitare il calcolo a ~84 combinazioni
+        for comb in combinations(pivot_12[:9], 6):
+            h_sestina = calcola_rugosita(comb)
+            # Verifichiamo se questa sestina "atterra" sulla Kostante
+            if abs(h_sestina - Kostante_Operativa) < 0.005: # Margine di tolleranza per la visualizzazione
+                sestine_finali.append((comb, abs(h_sestina - Kostante_Operativa)))
+        
+        sestine_finali.sort(key=lambda x: x[1])
+        
+        if sestine_finali:
+            for i, (s, err) in enumerate(sestine_finali[:5]):
+                st.success(f"Sestina {i+1} (Scarto: {err:.5f})")
+                st.code(sorted(s))
+        else:
+            st.warning("Nessuna sestina soddisfa il bilancio dei delta. Prova ad allargare i Pivot.")
 
 except Exception as e:
-    st.error(f"Errore Critico: {e}")
+    st.error(f"Errore nel motore di calcolo: {e}")
