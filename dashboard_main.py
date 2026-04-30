@@ -73,7 +73,7 @@ try:
             st.write("Questi numeri compaiono con frequenza anomala nelle combinazioni che rispettano il Quid.")
             
             tutti_i_numeri = [n for s, _, _, _ in sestine_risultanti for n in s]
-            frequenze = pd.Series(tutti_i_numeri).value_counts().head(12)
+            frequenze = pd.Series(tutti_i_numeri).value_counts().head(25)
             
             cols = st.columns(6)
             for i, (num, freq) in enumerate(frequenze.items()):
