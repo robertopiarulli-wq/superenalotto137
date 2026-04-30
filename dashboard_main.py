@@ -45,7 +45,7 @@ try:
     h_136_attuale = df_full['H'].iloc[0]
     target_h = df_full['H'].iloc[0:136].mean() * Q_medio
     # Manteniamo la morsa allo 0.01% per avere un campione statistico valido
-    morsa_millimetrica = target_h * 0.0001 
+    morsa_millimetrica = target_h * 0.001 
 
     st.success(f"Bersaglio H: {target_h:.6f} | Delta Atteso: {Delta_medio:.6f}")
 
@@ -73,7 +73,7 @@ try:
             st.write("Questi numeri compaiono con frequenza anomala nelle combinazioni che rispettano il Quid.")
             
             tutti_i_numeri = [n for s, _, _, _ in sestine_risultanti for n in s]
-            frequenze = pd.Series(tutti_i_numeri).value_counts().head(25)
+            frequenze = pd.Series(tutti_i_numeri).value_counts().head(12)
             
             cols = st.columns(6)
             for i, (num, freq) in enumerate(frequenze.items()):
