@@ -51,7 +51,7 @@ try:
 
     if st.button("Esegui Sintesi e Analizza Cardini (1M Cicli)"):
         sestine_risultanti = []
-        n_tentativi = 5000000
+        n_tentativi = 3000000
         prog_bar = st.progress(0)
         
         batch_size = 50000
