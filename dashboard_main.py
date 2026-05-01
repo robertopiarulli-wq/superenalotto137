@@ -45,13 +45,13 @@ try:
     h_136_attuale = df_full['H'].iloc[0]
     target_h = df_full['H'].iloc[0:136].mean() * Q_medio
     # Manteniamo la morsa allo 0.01% per avere un campione statistico valido
-    morsa_millimetrica = target_h * 0.1 
+    morsa_millimetrica = target_h * 0.5 
 
     st.success(f"Bersaglio H: {target_h:.6f} | Delta Atteso: {Delta_medio:.6f}")
 
     if st.button("Esegui Sintesi e Analizza Cardini (1M Cicli)"):
         sestine_risultanti = []
-        n_tentativi = 1000000
+        n_tentativi = 5000000
         prog_bar = st.progress(0)
         
         batch_size = 50000
