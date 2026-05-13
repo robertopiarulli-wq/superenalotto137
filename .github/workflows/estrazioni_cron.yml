@@ -37,6 +37,16 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python analisi_pressione.py
 
+      # ... (altri step di analisi) ...
+
+      - name: Commit e Push dei risultati
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add mappa_valli_pressione.csv
+          git commit -m "Update Mappa Pressione [skip ci]" || echo "No changes to commit"
+          git push
+
       - name: 3. Esecuzione Analisi Parisi
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
