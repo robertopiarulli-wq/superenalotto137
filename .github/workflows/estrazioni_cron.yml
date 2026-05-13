@@ -2,10 +2,8 @@ name: Superenalotto Armonia 137 & Pressione Update
 
 on:
   schedule:
-    # Esecuzione alle 20:30 UTC (circa 22:30 ora italiana) 
-    # nei giorni di estrazione: Martedì, Giovedì, Venerdì, Sabato.
     - cron: '30 20 * * 2,4,5,6'
-  workflow_dispatch: # Permette l'avvio manuale
+  workflow_dispatch: 
 
 jobs:
   build_and_run:
@@ -25,42 +23,28 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas supabase requests numpy beautifulsoup4
 
-      - name: 1. Esecuzione Update Database
+      - name: 1. Update Database
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python update_estrazioni.py
 
-      - name: 2. Esecuzione BLOCCO MOTORE 1 (Analisi Pressione)
+      - name: 2. Analisi Pressione (Mappa Valli)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python analisi_pressione.py
 
-      # ... (altri step di analisi) ...
-
-      - name: Commit e Push dei risultati
-        run: |
-          git config --global user.name "GitHub Action"
-          git config --global user.email "action@github.com"
-          git add mappa_valli_pressione.csv
-          git commit -m "Update Mappa Pressione [skip ci]" || echo "No changes to commit"
-          git push
-
-      - name: 3. Esecuzione Analisi Parisi
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: python analisi_parisi.py
-
-      - name: 4. Esecuzione Analisi Risonanza 137
+      - name: 3. Analisi Risonanza (Generazione Cardini)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python analisi_risonanza_137.py
 
-      - name: Archiviazione Risultati (CSV)
-        uses: actions/upload-artifact@v4
-        with:
-          name: report-analisi-superenalotto
-          path: mappa_valli_pressione.csv
+      - name: 4. Commit e Push dei risultati scientifici
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add mappa_valli_pressione.csv cardini_scientifici.json
+          git commit -m "Update dati scientifici [skip ci]" || echo "No changes to commit"
+          git push
