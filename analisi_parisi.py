@@ -1,10 +1,15 @@
+import os
 import pandas as pd
-from supabase import create_client
 import numpy as np
+from supabase import create_client
 
-# Configurazione
-URL = "TUA_URL_SUPABASE"
-KEY = "TUA_ANON_KEY"
+# --- CONFIGURAZIONE SICURA ---
+URL = os.environ.get("SUPABASE_URL")
+KEY = os.environ.get("SUPABASE_KEY")
+
+if not URL or not KEY:
+    raise ValueError("ERRORE: Credenziali non trovate. Verifica i Secrets su GitHub.")
+
 supabase = create_client(URL, KEY)
 
 def calcola_rugosita(sestina):
