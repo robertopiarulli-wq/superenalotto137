@@ -58,13 +58,13 @@ def carica_report_motori():
     return scienza, valli, sature
 
 # --- UI ---
-st.set_page_config(page_title="Morsa V16 - Auto-Targeting", layout="wide")
+st.set_page_config(page_title="Morsa V17 - Pool Bilanciato", layout="wide")
 df_full, blacklist, mappa_ritardi = analizza_dati_freschi()
 scienza, valli, sature = carica_report_motori()
 
-st.title("🚀 Morsa Scientifica V16: Navigatore di Pressione")
+st.title("🚀 Morsa Scientifica V17: Pool Dinamico di Compensazione")
 
-# 1. ANALISI POOL E SUGGERIMENTI DI BILANCIAMENTO
+# 1. ANALISI POOL E SUPERSTITI
 st.subheader("📋 Analisi Superstiti del Pool Eletto")
 pool_residuo = [n for n in scienza["pool_eletto"] if n not in blacklist]
 dati_pool = [{"Numero": n, "Ritardo": mappa_ritardi.get(n, 0), "Peso": "Alto" if n > 45 else "Basso"} for n in pool_residuo]
@@ -74,12 +74,9 @@ col_p1, col_p2 = st.columns([1, 2])
 with col_p1:
     st.dataframe(df_pool, hide_index=True)
 with col_p2:
-    # AUTO-TARGETING DELLA VALLE
     if valli:
-        # Scegliamo la valle più centrale (vicina a somma 170-190) che non sia satura
         valle_target = min(valli, key=lambda x: abs(x[0] - 180))
         st.success(f"🎯 **Target Somma Ottimale**: {valle_target[0]} - {valle_target[1]}")
-        st.info("Il sistema ha scelto questa valle perché è la zona di transizione più equilibrata stasera.")
     else:
         valle_target = (150, 250)
         st.warning("Nessuna valle specifica rilevata. Target standard: 150-250.")
@@ -91,16 +88,9 @@ scelta_acc = st.sidebar.selectbox("🔥 Nuclei Dominanti Vivi", ["Manuale"] + [f
 fisse_auto = [int(x) for x in scelta_acc.split("-")] if scelta_acc != "Manuale" else []
 
 cardini = st.sidebar.multiselect("Cardini Attivi (Fisse)", range(1, 91), default=fisse_auto)
+ampiezza_pool = st.sidebar.slider("Ampiezza Pool Bilanciamento", 12, 25, 18)
 
-# SUGGERITORE DI NUMERI UTILI
-if cardini:
-    somma_fisse = sum(cardini)
-    n_mancanti = 6 - len(cardini)
-    if n_mancanti > 0:
-        media_necessaria = (valle_target[0] + (valle_target[1]-valle_target[0])/2 - somma_fisse) / n_mancanti
-        st.sidebar.write(f"💡 Per la valle target, scegli numeri mediamente intorno al: **{int(media_necessaria)}**")
-
-# METRICHE
+# 3. METRICHE
 target_h = df_full['H'].iloc[0:136].mean() * 0.98
 st.divider()
 m1, m2, m3 = st.columns(3)
@@ -108,9 +98,24 @@ m1.metric("Bersaglio Rugosità H", f"{target_h:.5f}")
 m2.metric("Cluster Attivo", scienza["cluster_attivo"])
 m3.metric("Blacklist", f"{len(blacklist)} num")
 
-# 4. GENERAZIONE
+# 4. GENERAZIONE CON COMPENSAZIONE AUTOMATICA
 if st.button("🚀 GENERA ARROSTO AUTOMATIZZATO"):
-    pool_f = sorted(list(set(cardini + pool_residuo[:15])))
+    somma_fisse = sum(cardini)
+    n_mancanti = 6 - len(cardini)
+    
+    if n_mancanti > 0:
+        centro_valle = (valle_target[0] + valle_target[1]) / 2
+        media_target = (centro_valle - somma_fisse) / n_mancanti
+        
+        # LOGICA DI COMPENSAZIONE: ordiniamo il pool per vicinanza al valore necessario
+        pool_bilanciato = sorted(pool_residuo, key=lambda x: abs(x - media_target))
+        pool_f = sorted(list(set(cardini + pool_bilanciato[:ampiezza_pool])))
+        st.write(f"🛠️ **Pool di Compensazione Attivo** (Media necessaria: {int(media_target)})")
+    else:
+        pool_f = sorted(cardini)
+
+    st.write(f"Analisi su Pool: `{pool_f}`")
+    
     sestine_nobili = []
     combs = list(itertools.combinations(pool_f, 6))
     prog = st.progress(0)
@@ -119,7 +124,6 @@ if st.button("🚀 GENERA ARROSTO AUTOMATIZZATO"):
         s = sorted(list(comb))
         if all(f in s for f in cardini):
             somma_s = sum(s)
-            # FIX: Corretto riferimento variabile s_z -> s_f
             check_valle = (valle_target[0] < somma_s <= valle_target[1])
             check_satura = any(s_f[0] < somma_s <= s_f[1] for s_f in sature)
             
@@ -137,4 +141,7 @@ if st.button("🚀 GENERA ARROSTO AUTOMATIZZATO"):
         st.table(pd.DataFrame(sorted(sestine_nobili, key=lambda x: x[1])[:30], 
                              columns=['Sestina', 'Errore', 'Rugosità', 'Somma']))
     else:
-        st.error("Nessun risultato. I cardini scelti rendono impossibile raggiungere la Valle Target. Prova numeri più alti o più bassi.")
+        st.error("La morsa è troppo stretta. Prova ad aumentare l'ampiezza del pool bilanciamento.")
+
+except Exception as e:
+    st.error(f"Errore critico: {e}")
