@@ -2,9 +2,9 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from supabase import create_client
-import random
 import json
 import os
+import itertools
 
 # --- CONNESSIONE DATABASE ---
 try:
@@ -40,80 +40,91 @@ def analizza_legge_universale_doppia():
 def carica_dati_scientifici():
     cardini = []
     valli = []
-    # 1. Caricamento Cardini (se il motore li ha generati)
+    pool_completo = []
+    
     if os.path.exists("cardini_scientifici.json"):
         with open("cardini_scientifici.json", "r") as f:
-            cardini = json.load(f)
-    # 2. Caricamento Valli di Pressione
+            pool_completo = json.load(f)
+            cardini = pool_completo[:2] if len(pool_completo) >= 2 else pool_completo
+            
     if os.path.exists("mappa_valli_pressione.csv"):
         mappa = pd.read_csv("mappa_valli_pressione.csv")
         v_df = mappa[mappa['stato_zona'] == 'VALLE (TRANSIZIONE)']
         for f in v_df['fascia']:
             nums = f.replace('(', '').replace(']', '').split(',')
             valli.append((float(nums[0]), float(nums[1])))
-    return cardini, valli
+            
+    return cardini, valli, pool_completo
 
 # --- INTERFACCIA ---
-st.set_page_config(page_title="Morsa Parisi-Wyckoff", layout="wide")
-st.title("🔬 Morsa Automatica: Rugosità & Pressione")
+st.set_page_config(page_title="Morsa Deterministica Parisi-137", layout="wide")
+st.title("🔬 Morsa Scientifica: Generazione da Pool Eletto")
 
 try:
     df_full, Q_medio, Delta_medio = analizza_legge_universale_doppia()
-    cardini_auto, valli_target = carica_dati_scientifici()
+    cardini_auto, valli_target, pool_risonanza = carica_dati_scientifici()
     
     st.sidebar.header("Parametri Motore")
-    # Se cardini_auto è vuoto, mettiamo 70 e 80 come suggerimento
+    # Se il pool è vuoto, fallback su cardini manuali
     default_cardini = cardini_auto if cardini_auto else [70, 80]
-    cardini_finali = st.sidebar.multiselect("Cardini Attivi", range(1, 91), default=default_cardini)
+    cardini_finali = st.sidebar.multiselect("Cardini Attivi (Fisse)", range(1, 91), default=default_cardini)
+    
+    dim_pool = st.sidebar.slider("Ampiezza Pool Eletto", 12, 22, 18)
 
     h_136_attuale = df_full['H'].iloc[0]
     target_h = df_full['H'].iloc[0:136].mean() * Q_medio
-    morsa_millimetrica = target_h * 0.1 # Qualità alta
+    morsa_millimetrica = target_h * 0.1 
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Bersaglio Rugosità H", f"{target_h:.5f}")
     col2.metric("Delta Atteso", f"{Delta_medio:.5f}")
     
     if valli_target:
-        col3.success(f"Valli Attive: {len(valli_target)}")
+        col3.success(f"{len(valli_target)} Valli di Pressione Attive")
     else:
         col3.warning("Filtro Somma: Wyckoff Standard (150-250)")
 
-    if st.button("🔥 GENERA ARROSTO SENZA ARTEFATTI"):
-        sestine_risultanti = []
-        n_tentativi = 4000000
-        prog_bar = st.progress(0)
+    if st.button("🚀 GENERA ARROSTO DETERMINISTICO"):
+        # Costruzione del Pool Eletto (Cardini + Top Risonanza)
+        pool_eletto = sorted(list(set(cardini_finali + pool_risonanza[:dim_pool])))
+        st.write(f"Analisi di tutte le combinazioni possibili dal pool: `{pool_eletto}`")
         
-        for batch in range(0, n_tentativi, 100000):
-            for _ in range(100000):
-                # Generazione con cardini
-                s_base = random.sample([n for n in range(1, 91) if n not in cardini_finali], 6 - len(cardini_finali))
-                s = sorted(s_base + cardini_finali)
+        # Generazione combinatoria C(n, 6)
+        tutte_le_sestine = list(itertools.combinations(pool_eletto, 6))
+        sestine_risultanti = []
+        
+        prog_bar = st.progress(0)
+        total_comb = len(tutte_le_sestine)
+        
+        for i, s_tuple in enumerate(tutte_le_sestine):
+            s = sorted(list(s_tuple))
+            
+            # 1. Controllo Fisse (Cardini)
+            if all(c in s for c in cardini_finali):
                 somma_s = sum(s)
                 
-                # --- IL CUORE DELL'AUTOMAZIONE: FILTRO SOMMA ---
-                in_valle = False
-                if valli_target:
-                    in_valle = any(v[0] < somma_s <= v[1] for v in valli_target)
-                else:
-                    # Se il file non c'è, impediamo le somme assurde (artefatti)
-                    if 150 <= somma_s <= 250: in_valle = True
+                # 2. Filtro Pressione (Valli)
+                in_valle = any(v[0] < somma_s <= v[1] for v in valli_target) if valli_target else (150 <= somma_s <= 250)
                 
                 if in_valle:
+                    # 3. Morsa di Parisi (Rugosità)
                     h_s = calcola_rugosita(s)
                     if abs(h_s - target_h) < morsa_millimetrica:
                         err_tot = abs(h_s - target_h) + (abs((h_s - h_136_attuale) - Delta_medio) * 10)
                         sestine_risultanti.append((s, err_tot, h_s, somma_s))
-            prog_bar.progress((batch + 100000) / n_tentativi)
+            
+            if i % 1000 == 0:
+                prog_bar.progress((i + 1) / total_comb)
         
         prog_bar.empty()
         
         if sestine_risultanti:
             sestine_risultanti.sort(key=lambda x: x[1])
-            df_final = pd.DataFrame(sestine_risultanti[:20], columns=['Sestina', 'Errore', 'H', 'Somma'])
+            st.subheader(f"✨ L'Arrosto: {len(sestine_risultanti)} Sestine Nobili")
+            df_final = pd.DataFrame(sestine_risultanti[:30], columns=['Sestina', 'Errore', 'Rugosità H', 'Somma Totale'])
             st.table(df_final)
         else:
-            st.error("Morsa troppo stretta. I cardini scelti non cadono nelle valli di pressione.")
+            st.error("Nessuna combinazione del pool rispetta la morsa. Prova ad aumentare l'ampiezza del pool o a cambiare cardini.")
 
 except Exception as e:
     st.error(f"Errore: {e}")
