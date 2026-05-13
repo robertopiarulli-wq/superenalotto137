@@ -14,14 +14,13 @@ def calcola_rugosita(serie):
     return np.std(np.diff(serie))
 
 def esegui_analisi():
-    # Recupero ultime 137 estrazioni
     response = supabase.table("estrazioni").select("*").order("data_estrazione", desc=True).limit(137).execute()
     df = pd.DataFrame(response.data)
     
     colonne_numeri = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6']
     risultati = []
     
-    for num in range(1, 91): # Range 1-90
+    for num in range(1, 91): # Ciclo su numeri da 1 a 90
         uscite = []
         for i, row in df.iterrows():
             if num in row[colonne_numeri].values:
@@ -31,18 +30,19 @@ def esegui_analisi():
             ritardi = np.diff(uscite)
             rugosita = calcola_rugosita(ritardi)
             frequenza = len(uscite)
-            # Indice di Risonanza: equilibrio tra frequenza e regolarità
             risonanza = frequenza / (rugosita + 1)
             risultati.append({'numero': int(num), 'risonanza': float(risonanza)})
 
     classifica = sorted(risultati, key=lambda x: x['risonanza'], reverse=True)
     
-    # Salvataggio dei veri cardini (Top 2)
+    # --- SALVATAGGIO CARDINI SCIENTIFICI ---
+    # Prendiamo i primi 2 numeri con la risonanza più alta
     top_cardini = [n['numero'] for n in classifica[:2]]
+    
     with open("cardini_scientifici.json", "w") as f:
         json.dump(top_cardini, f)
     
-    print(f"Cardini scientifici salvati: {top_cardini}")
+    print(f"Cardini scientifici rilevati e salvati: {top_cardini}")
 
 if __name__ == "__main__":
     esegui_analisi()
