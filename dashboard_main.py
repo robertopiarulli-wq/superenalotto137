@@ -6,138 +6,129 @@ import json
 import os
 import itertools
 
-# --- CONFIGURAZIONE E CONNESSIONE ---
+# --- CONNESSIONE E LOGICA BASE ---
 try:
     URL = st.secrets["URL_SUPABASE"]
     KEY = st.secrets["KEY_SUPABASE"]
     supabase = create_client(URL, KEY)
 except Exception as e:
-    st.error("Errore di connessione a Supabase. Verifica i Secrets.")
+    st.error("Errore di connessione a Supabase.")
     st.stop()
 
 def calcola_rugosita(sestina):
-    """Calcola l'indice di rugosità H di Parisi per una sestina."""
     s_ord = np.sort(sestina)
     diffs = np.diff(s_ord)
     mu = np.mean(diffs)
     return np.std(diffs) / mu if mu != 0 else 0
 
 @st.cache_data(ttl=3600) 
-def analizza_legge_universale_doppia():
-    """Analizza l'andamento storico della rugosità."""
+def analizza_dati_freschi():
     res = supabase.table("estrazioni").select("*").order("data_estrazione", desc=True).execute()
-    full_df = pd.DataFrame(res.data)
-    full_df['H'] = full_df.apply(lambda r: calcola_rugosita([r.n1, r.n2, r.n3, r.n4, r.n5, r.n6]), axis=1)
+    df = pd.DataFrame(res.data)
+    df['H'] = df.apply(lambda r: calcola_rugosita([r.n1, r.n2, r.n3, r.n4, r.n5, r.n6]), axis=1)
     
-    q_prop, q_delta = [], []
-    for i in range(len(full_df) - 137):
-        h_137 = full_df['H'].iloc[i]
-        h_136_prec = full_df['H'].iloc[i+1]
-        media_corpo = full_df['H'].iloc[i+1 : i+137].mean()
-        if media_corpo != 0:
-            q_prop.append(h_137 / media_corpo)
-            q_delta.append(h_137 - h_136_prec)
-    return full_df, np.mean(q_prop), np.mean(q_delta)
+    # Calcolo Blacklist (Ultime 3 estrazioni)
+    cols = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6']
+    blacklist = set(df.head(3)[cols].values.flatten())
+    
+    # Calcolo Ritardi per tutto il pool (1-90)
+    ritardi = {}
+    for n in range(1, 91):
+        for i, row in enumerate(df[cols].values):
+            if n in row:
+                ritardi[n] = i
+                break
+    
+    return df, blacklist, ritardi
 
-def carica_dati_scientifici():
-    """Carica i risultati della Trinità Algoritmica."""
-    dati = {"pool_eletto": [], "nuclei_accelerati": [], "nuclei_ritardo": [], "cluster_attivo": None}
+def carica_report_motori():
+    scienza = {"pool_eletto": [], "nuclei_accelerati": [], "cluster_attivo": None}
     if os.path.exists("cardini_scientifici.json"):
         with open("cardini_scientifici.json", "r") as f:
-            dati.update(json.load(f))
-            
-    valli = []
+            scienza.update(json.load(f))
+    
+    valli, sature = [], []
     if os.path.exists("mappa_valli_pressione.csv"):
         mappa = pd.read_csv("mappa_valli_pressione.csv")
-        v_df = mappa[mappa['stato_zona'] == 'VALLE (TRANSIZIONE)']
-        for f in v_df['fascia']:
-            nums = f.replace('(', '').replace(']', '').split(',')
-            valli.append((float(nums[0]), float(nums[1])))
-    return dati, valli
-
-def filtro_memoria_atomico(df, nuclei):
-    """
-    IMPLEMENTAZIONE VETO ATOMICO: 
-    Esclude nuclei se ALMENO UNO dei numeri è uscito nelle ultime 3 estrazioni.
-    """
-    ultime_3 = df.head(3)
-    cols = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6']
-    
-    # Creiamo la Blacklist atomica dei numeri usciti
-    numeri_usciti = set(ultime_3[cols].values.flatten())
-    
-    vivi, cold = [], []
-    for n in nuclei:
-        # Il nucleo è 'vissuto' solo se nessuno dei suoi numeri è nella Blacklist
-        if any(num in numeri_usciti for num in n):
-            cold.append(n)
-        else:
-            vivi.append(n)
-    return vivi, cold
-
-# --- INTERFACCIA STREAMLIT ---
-st.set_page_config(page_title="Morsa Trinità - Veto Atomico", layout="wide")
-st.title("🔬 Morsa Scientifica Integrale: Filtro Nuclei Consolidati")
-
-try:
-    df_full, Q_medio, Delta_medio = analizza_legge_universale_doppia()
-    scienza, valli_target = carica_dati_scientifici()
-    
-    # Applicazione del NUOVO Filtro Memoria Atomico
-    vivi_acc, cold_acc = filtro_memoria_atomico(df_full, scienza["nuclei_accelerati"])
-    
-    # SIDEBAR
-    st.sidebar.header("🎯 Target Algoritmici")
-    scelta_acc = st.sidebar.selectbox("🔥 Nuclei Dominanti Vivi (Consolidati)", 
-                                      ["Manuale"] + [f"{n[0]}-{n[1]}" for n in vivi_acc])
-    fisse_auto = [int(x) for x in scelta_acc.split("-")] if scelta_acc != "Manuale" else []
-    
-    if cold_acc:
-        st.sidebar.warning(f"❄️ In Raffreddamento Atomico: {cold_acc}")
-        
-    cardini_finali = st.sidebar.multiselect("Cardini Attivi (Fisse)", range(1, 91), default=fisse_auto)
-    ampiezza_pool = st.sidebar.slider("Numeri dal Pool Eletto", 10, 22, 18)
-    
-    # METRICHE PRINCIPALI
-    target_h = df_full['H'].iloc[0:136].mean() * Q_medio
-    morsa_val = target_h * 0.1 
-    
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Bersaglio Rugosità H", f"{target_h:.5f}")
-    c2.metric("Cluster di Forma", f"ID: {scienza['cluster_attivo']}")
-    c3.metric("Delta Atteso", f"{Delta_medio:.5f}")
-
-    # GENERAZIONE
-    if st.button("🚀 GENERA ARROSTO DETERMINISTICO"):
-        pool_puro = [n for n in scienza["pool_eletto"] if n not in cardini_finali]
-        pool_finale = sorted(cardini_finali + pool_puro[:ampiezza_pool - len(cardini_finali)])
-        
-        st.write(f"Analisi Combinatoria su Pool: `{pool_finale}`")
-        
-        sestine_valide = []
-        combs = list(itertools.combinations(pool_finale, 6))
-        prog = st.progress(0)
-        
-        for i, comb in enumerate(combs):
-            s = sorted(list(comb))
-            if all(f in s for f in cardini_finali):
-                somma_s = sum(s)
-                if any(v[0] < somma_s <= v[1] for v in valli_target) if valli_target else (150 <= somma_s <= 250):
-                    h_s = calcola_rugosita(s)
-                    if abs(h_s - target_h) < morsa_val:
-                        errore = abs(h_s - target_h) + abs((h_s - df_full['H'].iloc[0]) - Delta_medio) * 5
-                        sestine_valide.append((s, errore, h_s, somma_s))
+        for _, row in mappa.iterrows():
+            nums = row['fascia'].replace('(', '').replace(']', '').split(',')
+            f_range = (float(nums[0]), float(nums[1]))
+            if row['stato_zona'] == 'VALLE (TRANSIZIONE)': valli.append(f_range)
+            elif row['stato_zona'] == 'SATURA': sature.append(f_range)
             
-            if i % 2000 == 0: prog.progress((i+1)/len(combs))
-        
-        prog.empty()
-        
-        if sestine_valide:
-            sestine_valide.sort(key=lambda x: x[1])
-            st.subheader(f"✨ L'Arrosto: {len(sestine_valide)} Sestine Nobili")
-            st.table(pd.DataFrame(sestine_valide[:30], columns=['Sestina', 'Errore', 'Rugosità', 'Somma']))
-        else:
-            st.error("Nessuna combinazione valida. Riduci le fisse o amplia il pool.")
+    return scienza, valli, sature
 
-except Exception as e:
-    st.error(f"Errore critico: {e}")
+# --- UI ---
+st.set_page_config(page_title="Morsa V15 - Automazione Totale", layout="wide")
+df_full, blacklist, mappa_ritardi = analizza_dati_freschi()
+scienza, valli, sature = carica_report_motori()
+
+st.title("🚀 Morsa Scientifica V15: Automazione & Pressione")
+
+# 1. VISUALIZZAZIONE POOL RESIDUO (I "SANI")
+st.subheader("📋 Pool Eletto: Analisi Superstiti (Ordinati per Ritardo)")
+pool_residuo = [n for n in scienza["pool_eletto"] if n not in blacklist]
+dati_pool = [{"Numero": n, "Ritardo": mappa_ritardi.get(n, 0)} for n in pool_residuo]
+df_pool = pd.DataFrame(dati_pool).sort_values("Ritardo", ascending=False)
+
+c1, c2 = st.columns([1, 3])
+with c1:
+    st.dataframe(df_pool, hide_index=True)
+with c2:
+    st.info(f"**Veto Atomico Attivo**: Esclusi {len(blacklist)} numeri usciti recentemente. Questi {len(pool_residuo)} numeri sono i più solidi per stasera.")
+
+# 2. AUTOMAZIONE FASCE
+st.sidebar.header("⚖️ Bilanciamento Pressione")
+st.sidebar.write("**Valli Attive (Target):**")
+for v in valli: st.sidebar.success(f"Somma tra {v[0]} e {v[1]}")
+st.sidebar.write("**Zone Sature (Scartate):**")
+for s in sature: st.sidebar.error(f"Fascia {s[0]}-{s[1]}")
+
+# 3. SELEZIONE CARDINI
+vivi_acc = [n for n in scienza["nuclei_accelerati"] if not any(num in blacklist for num in n)]
+scelta_acc = st.sidebar.selectbox("🔥 Nuclei Dominanti Vivi", ["Manuale"] + [f"{n[0]}-{n[1]}" for n in vivi_acc])
+fisse_auto = [int(x) for x in scelta_acc.split("-")] if scelta_acc != "Manuale" else []
+
+cardini = st.sidebar.multiselect("Cardini Attivi (Fisse)", range(1, 91), default=fisse_auto)
+
+# METRICHE
+res_h = df_full['H'].iloc[0:136].mean()
+target_h = res_h * 0.98 # Calibrato su trend attuale
+st.divider()
+m1, m2, m3 = st.columns(3)
+m1.metric("Bersaglio Rugosità H", f"{target_h:.5f}")
+m2.metric("Cluster Attivo", scienza["cluster_attivo"])
+m3.metric("Numeri in Blacklist", len(blacklist))
+
+# 4. GENERAZIONE CON FILTRI AUTOMATICI
+if st.button("🚀 GENERA ARROSTO AUTOMATIZZATO"):
+    pool_f = sorted(list(set(cardini + pool_residuo[:15])))
+    st.write(f"Analisi su Pool Nobiltà: `{pool_f}`")
+    
+    sestine_nobili = []
+    combs = list(itertools.combinations(pool_f, 6))
+    prog = st.progress(0)
+    
+    for i, comb in enumerate(combs):
+        s = sorted(list(comb))
+        if all(f in s for f in cardini):
+            somma_s = sum(s)
+            # FILTRO AUTOMATICO: Deve essere in una Valle E NON in una zona Satura
+            check_valle = any(v[0] < somma_s <= v[1] for v in valli)
+            check_satura = any(s_z[0] < somma_s <= s_z[1] for s in sature)
+            
+            if check_valle and not check_satura:
+                h_s = calcola_rugosita(s)
+                if abs(h_s - target_h) < (target_h * 0.08):
+                    err = abs(h_s - target_h)
+                    sestine_nobili.append((s, err, h_s, somma_s))
+        
+        if i % 2000 == 0: prog.progress((i+1)/len(combs))
+    prog.empty()
+    
+    if sestine_nobili:
+        st.subheader(f"✨ L'Arrosto (Filtrato per Pressione e Rugosità): {len(sestine_nobili)}")
+        st.table(pd.DataFrame(sorted(sestine_nobili, key=lambda x: x[1])[:30], 
+                             columns=['Sestina', 'Errore', 'Rugosità', 'Somma']))
+    else:
+        st.error("Morsa troppo stretta. Cambia i cardini tra quelli con maggior ritardo.")
