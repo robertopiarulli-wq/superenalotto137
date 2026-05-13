@@ -27,17 +27,16 @@ def analizza_dati_freschi():
     df = pd.DataFrame(res.data)
     df['H'] = df.apply(lambda r: calcola_rugosita([r.n1, r.n2, r.n3, r.n4, r.n5, r.n6]), axis=1)
     
-    # Calcolo Blacklist (Ultime 3 estrazioni)
     cols = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6']
     blacklist = set(df.head(3)[cols].values.flatten())
     
-    # Calcolo Ritardi per tutto il pool (1-90)
     ritardi = {}
     for n in range(1, 91):
         for i, row in enumerate(df[cols].values):
             if n in row:
                 ritardi[n] = i
                 break
+        if n not in ritardi: ritardi[n] = len(df)
     
     return df, blacklist, ritardi
 
@@ -59,52 +58,59 @@ def carica_report_motori():
     return scienza, valli, sature
 
 # --- UI ---
-st.set_page_config(page_title="Morsa V15 - Automazione Totale", layout="wide")
+st.set_page_config(page_title="Morsa V16 - Auto-Targeting", layout="wide")
 df_full, blacklist, mappa_ritardi = analizza_dati_freschi()
 scienza, valli, sature = carica_report_motori()
 
-st.title("🚀 Morsa Scientifica V15: Automazione & Pressione")
+st.title("🚀 Morsa Scientifica V16: Navigatore di Pressione")
 
-# 1. VISUALIZZAZIONE POOL RESIDUO (I "SANI")
-st.subheader("📋 Pool Eletto: Analisi Superstiti (Ordinati per Ritardo)")
+# 1. ANALISI POOL E SUGGERIMENTI DI BILANCIAMENTO
+st.subheader("📋 Analisi Superstiti del Pool Eletto")
 pool_residuo = [n for n in scienza["pool_eletto"] if n not in blacklist]
-dati_pool = [{"Numero": n, "Ritardo": mappa_ritardi.get(n, 0)} for n in pool_residuo]
+dati_pool = [{"Numero": n, "Ritardo": mappa_ritardi.get(n, 0), "Peso": "Alto" if n > 45 else "Basso"} for n in pool_residuo]
 df_pool = pd.DataFrame(dati_pool).sort_values("Ritardo", ascending=False)
 
-c1, c2 = st.columns([1, 3])
-with c1:
+col_p1, col_p2 = st.columns([1, 2])
+with col_p1:
     st.dataframe(df_pool, hide_index=True)
-with c2:
-    st.info(f"**Veto Atomico Attivo**: Esclusi {len(blacklist)} numeri usciti recentemente. Questi {len(pool_residuo)} numeri sono i più solidi per stasera.")
+with col_p2:
+    # AUTO-TARGETING DELLA VALLE
+    if valli:
+        # Scegliamo la valle più centrale (vicina a somma 170-190) che non sia satura
+        valle_target = min(valli, key=lambda x: abs(x[0] - 180))
+        st.success(f"🎯 **Target Somma Ottimale**: {valle_target[0]} - {valle_target[1]}")
+        st.info("Il sistema ha scelto questa valle perché è la zona di transizione più equilibrata stasera.")
+    else:
+        valle_target = (150, 250)
+        st.warning("Nessuna valle specifica rilevata. Target standard: 150-250.")
 
-# 2. AUTOMAZIONE FASCE
-st.sidebar.header("⚖️ Bilanciamento Pressione")
-st.sidebar.write("**Valli Attive (Target):**")
-for v in valli: st.sidebar.success(f"Somma tra {v[0]} e {v[1]}")
-st.sidebar.write("**Zone Sature (Scartate):**")
-for s in sature: st.sidebar.error(f"Fascia {s[0]}-{s[1]}")
-
-# 3. SELEZIONE CARDINI
+# 2. SIDEBAR E SELEZIONE
+st.sidebar.header("🎯 Selezione Guidata")
 vivi_acc = [n for n in scienza["nuclei_accelerati"] if not any(num in blacklist for num in n)]
 scelta_acc = st.sidebar.selectbox("🔥 Nuclei Dominanti Vivi", ["Manuale"] + [f"{n[0]}-{n[1]}" for n in vivi_acc])
 fisse_auto = [int(x) for x in scelta_acc.split("-")] if scelta_acc != "Manuale" else []
 
 cardini = st.sidebar.multiselect("Cardini Attivi (Fisse)", range(1, 91), default=fisse_auto)
 
+# SUGGERITORE DI NUMERI UTILI
+if cardini:
+    somma_fisse = sum(cardini)
+    n_mancanti = 6 - len(cardini)
+    if n_mancanti > 0:
+        media_necessaria = (valle_target[0] + (valle_target[1]-valle_target[0])/2 - somma_fisse) / n_mancanti
+        st.sidebar.write(f"💡 Per la valle target, scegli numeri mediamente intorno al: **{int(media_necessaria)}**")
+
 # METRICHE
-res_h = df_full['H'].iloc[0:136].mean()
-target_h = res_h * 0.98 # Calibrato su trend attuale
+target_h = df_full['H'].iloc[0:136].mean() * 0.98
 st.divider()
 m1, m2, m3 = st.columns(3)
 m1.metric("Bersaglio Rugosità H", f"{target_h:.5f}")
 m2.metric("Cluster Attivo", scienza["cluster_attivo"])
-m3.metric("Numeri in Blacklist", len(blacklist))
+m3.metric("Blacklist", f"{len(blacklist)} num")
 
-# 4. GENERAZIONE CON FILTRI AUTOMATICI
+# 4. GENERAZIONE
 if st.button("🚀 GENERA ARROSTO AUTOMATIZZATO"):
     pool_f = sorted(list(set(cardini + pool_residuo[:15])))
-    st.write(f"Analisi su Pool Nobiltà: `{pool_f}`")
-    
     sestine_nobili = []
     combs = list(itertools.combinations(pool_f, 6))
     prog = st.progress(0)
@@ -113,9 +119,9 @@ if st.button("🚀 GENERA ARROSTO AUTOMATIZZATO"):
         s = sorted(list(comb))
         if all(f in s for f in cardini):
             somma_s = sum(s)
-            # FILTRO AUTOMATICO: Deve essere in una Valle E NON in una zona Satura
-            check_valle = any(v[0] < somma_s <= v[1] for v in valli)
-            check_satura = any(s_z[0] < somma_s <= s_z[1] for s in sature)
+            # FIX: Corretto riferimento variabile s_z -> s_f
+            check_valle = (valle_target[0] < somma_s <= valle_target[1])
+            check_satura = any(s_f[0] < somma_s <= s_f[1] for s_f in sature)
             
             if check_valle and not check_satura:
                 h_s = calcola_rugosita(s)
@@ -127,8 +133,8 @@ if st.button("🚀 GENERA ARROSTO AUTOMATIZZATO"):
     prog.empty()
     
     if sestine_nobili:
-        st.subheader(f"✨ L'Arrosto (Filtrato per Pressione e Rugosità): {len(sestine_nobili)}")
+        st.subheader(f"✨ L'Arrosto: {len(sestine_nobili)} Sestine Filtrate")
         st.table(pd.DataFrame(sorted(sestine_nobili, key=lambda x: x[1])[:30], 
                              columns=['Sestina', 'Errore', 'Rugosità', 'Somma']))
     else:
-        st.error("Morsa troppo stretta. Cambia i cardini tra quelli con maggior ritardo.")
+        st.error("Nessun risultato. I cardini scelti rendono impossibile raggiungere la Valle Target. Prova numeri più alti o più bassi.")
