@@ -6,16 +6,17 @@ import json
 import os
 import itertools
 
-# --- CONNESSIONE DATABASE ---
+# --- CONFIGURAZIONE E CONNESSIONE ---
 try:
     URL = st.secrets["URL_SUPABASE"]
     KEY = st.secrets["KEY_SUPABASE"]
     supabase = create_client(URL, KEY)
 except Exception as e:
-    st.error("Errore connessione: controlla i secrets.")
+    st.error("Errore di connessione a Supabase. Verifica i Secrets.")
     st.stop()
 
 def calcola_rugosita(sestina):
+    """Calcola l'indice di rugosità H di Parisi per una sestina."""
     s_ord = np.sort(sestina)
     diffs = np.diff(s_ord)
     mu = np.mean(diffs)
@@ -23,6 +24,7 @@ def calcola_rugosita(sestina):
 
 @st.cache_data(ttl=3600) 
 def analizza_legge_universale_doppia():
+    """Analizza l'andamento storico della rugosità per definire i target."""
     res = supabase.table("estrazioni").select("*").order("data_estrazione", desc=True).execute()
     full_df = pd.DataFrame(res.data)
     full_df['H'] = full_df.apply(lambda r: calcola_rugosita([r.n1, r.n2, r.n3, r.n4, r.n5, r.n6]), axis=1)
@@ -38,116 +40,101 @@ def analizza_legge_universale_doppia():
     return full_df, np.mean(q_prop), np.mean(q_delta)
 
 def carica_dati_scientifici():
-    pool_eletto, nuclei_acc, nuclei_rit = [], [], []
-    valli = []
-    
+    """Carica i risultati della Trinità Algoritmica."""
+    dati = {"pool_eletto": [], "nuclei_accelerati": [], "nuclei_ritardo": [], "cluster_attivo": None}
     if os.path.exists("cardini_scientifici.json"):
         with open("cardini_scientifici.json", "r") as f:
-            data = json.load(f)
-            # Gestione nuova struttura JSON o fallback vecchia lista
-            if isinstance(data, dict):
-                pool_eletto = data.get("pool_eletto", [])
-                nuclei_acc = data.get("nuclei_accelerati", [])
-                nuclei_rit = data.get("nuclei_ritardo", [])
-            else:
-                pool_eletto = data
+            dati.update(json.load(f))
             
+    valli = []
     if os.path.exists("mappa_valli_pressione.csv"):
         mappa = pd.read_csv("mappa_valli_pressione.csv")
         v_df = mappa[mappa['stato_zona'] == 'VALLE (TRANSIZIONE)']
         for f in v_df['fascia']:
             nums = f.replace('(', '').replace(']', '').split(',')
             valli.append((float(nums[0]), float(nums[1])))
-            
-    return pool_eletto, nuclei_acc, nuclei_rit, valli
+    return dati, valli
 
-def analizza_memoria_recente(df_estrazioni, nuclei):
-    """Filtra i nuclei apparsi nelle ultime 3 estrazioni."""
-    ultime_3 = df_estrazioni.head(3)
-    colonne = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6']
-    vivi, raffreddamento = [], []
-    
+def filtro_memoria_3(df, nuclei):
+    """Esclude i nuclei apparsi nelle ultime 3 estrazioni."""
+    ultime_3 = df.head(3)
+    cols = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6']
+    vivi, cold = [], []
     for n in nuclei:
-        uscito = False
-        for _, row in ultime_3.iterrows():
-            if n[0] in row[colonne].values and n[1] in row[colonne].values:
-                uscito = True
-                break
-        if uscito: raffreddamento.append(n)
+        # Controllo se entrambi i numeri del nucleo sono usciti insieme
+        uscito = any(set(n).issubset(set(row[cols].values)) for _, row in ultime_3.iterrows())
+        if uscito: cold.append(n)
         else: vivi.append(n)
-    return vivi, raffreddamento
+    return vivi, cold
 
-# --- INTERFACCIA ---
-st.set_page_config(page_title="Morsa Deterministica Memoria-137", layout="wide")
-st.title("🔬 Morsa Scientifica: Memoria Ciclica e Nuclei Dominanti")
+# --- INTERFACCIA STREAMLIT ---
+st.set_page_config(page_title="Morsa Trinità", layout="wide")
+st.title("🔬 Morsa Scientifica Integrale")
 
 try:
     df_full, Q_medio, Delta_medio = analizza_legge_universale_doppia()
-    pool_risonanza, nuclei_acc, nuclei_rit, valli_target = carica_dati_scientifici()
+    scienza, valli_target = carica_dati_scientifici()
     
-    # 1. Filtro Memoria (Ultime 3)
-    vivi_acc, cold_acc = analizza_memoria_recente(df_full, nuclei_acc)
-    vivi_rit, cold_rit = analizza_memoria_recente(df_full, nuclei_rit)
-
-    st.sidebar.header("🎯 Suggerimenti IA (Cardini)")
+    # Applicazione Filtro Memoria 3
+    vivi_acc, cold_acc = filtro_memoria_3(df_full, scienza["nuclei_accelerati"])
     
-    fisse_auto = []
-    if vivi_acc:
-        scelta = st.sidebar.selectbox("🔥 Nuclei Accelerati (Vivi)", 
-                                      ["Manuale"] + [f"{c[0]} - {c[1]}" for c in vivi_acc])
-        if scelta != "Manuale":
-            fisse_auto = [int(x) for x in scelta.split(" - ")]
-
-    if cold_acc or cold_rit:
-        st.sidebar.info(f"❄️ In Raffreddamento (ultime 3): {cold_acc + cold_rit}")
-
-    cardini_finali = st.sidebar.multiselect("Cardini Attivi", range(1, 91), default=fisse_auto)
-    dim_pool = st.sidebar.slider("Ampiezza Pool Eletto", 12, 22, 18)
-
-    # Parametri Morsa
-    h_136_attuale = df_full['H'].iloc[0]
+    # SIDEBAR
+    st.sidebar.header("🎯 Target Algoritmici")
+    scelta_acc = st.sidebar.selectbox("🔥 Nuclei Dominanti (Vivi)", ["Manuale"] + [f"{n[0]}-{n[1]}" for n in vivi_acc])
+    fisse_auto = [int(x) for x in scelta_acc.split("-")] if scelta_acc != "Manuale" else []
+    
+    if cold_acc:
+        st.sidebar.warning(f"❄️ Raffreddamento (ultime 3): {cold_acc}")
+        
+    cardini_finali = st.sidebar.multiselect("Cardini Attivi (Fisse)", range(1, 91), default=fisse_auto)
+    ampiezza_pool = st.sidebar.slider("Numeri dal Pool Eletto", 10, 22, 18)
+    
+    # METRICHE PRINCIPALI
     target_h = df_full['H'].iloc[0:136].mean() * Q_medio
-    morsa_millimetrica = target_h * 0.1 
+    morsa_val = target_h * 0.1 # Tolleranza 10%
+    
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Bersaglio Rugosità H", f"{target_h:.5f}")
+    c2.metric("Cluster di Forma", f"ID: {scienza['cluster_attivo']}")
+    c3.metric("Delta Atteso", f"{Delta_medio:.5f}")
 
-    # Visualizzazione Metriche
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Bersaglio Rugosità H", f"{target_h:.5f}")
-    col2.metric("Delta Atteso", f"{Delta_medio:.5f}")
-    col3.success(f"{len(valli_target)} Valli Attive") if valli_target else col3.warning("Filtro Standard 150-250")
-
+    # GENERAZIONE
     if st.button("🚀 GENERA ARROSTO DETERMINISTICO"):
-        pool_eletto = sorted(list(set(cardini_finali + pool_risonanza[:dim_pool])))
-        st.write(f"Analisi pool: `{pool_eletto}` (Fisse: {cardini_finali})")
+        # Costruisco il pool: fisse + i migliori del pool eletto
+        pool_puro = [n for n in scienza["pool_eletto"] if n not in cardini_finali]
+        pool_finale = sorted(cardini_finali + pool_puro[:ampiezza_pool - len(cardini_finali)])
         
-        tutte_le_sestine = list(itertools.combinations(pool_eletto, 6))
-        sestine_risultanti = []
+        st.write(f"Analisi Combinatoria su Pool: `{pool_finale}`")
         
-        prog_bar = st.progress(0)
-        total_comb = len(tutte_le_sestine)
+        sestine_valide = []
+        combs = list(itertools.combinations(pool_finale, 6))
+        prog = st.progress(0)
         
-        for i, s_tuple in enumerate(tutte_le_sestine):
-            s = sorted(list(s_tuple))
-            if all(c in s for c in cardini_finali):
+        for i, comb in enumerate(combs):
+            s = sorted(list(comb))
+            # 1. Vincolo Fisse
+            if all(f in s for f in cardini_finali):
                 somma_s = sum(s)
-                in_valle = any(v[0] < somma_s <= v[1] for v in valli_target) if valli_target else (150 <= somma_s <= 250)
-                
-                if in_valle:
+                # 2. Vincolo Pressione (Valli)
+                if any(v[0] < somma_s <= v[1] for v in valli_target) if valli_target else (150 <= somma_s <= 250):
+                    # 3. Morsa di Parisi (Rugosità)
                     h_s = calcola_rugosita(s)
-                    if abs(h_s - target_h) < morsa_millimetrica:
-                        err_tot = abs(h_s - target_h) + (abs((h_s - h_136_attuale) - Delta_medio) * 10)
-                        sestine_risultanti.append((s, err_tot, h_s, somma_s))
+                    if abs(h_s - target_h) < morsa_val:
+                        # Calcolo errore combinato (H + Delta)
+                        errore = abs(h_s - target_h) + abs((h_s - df_full['H'].iloc[0]) - Delta_medio) * 5
+                        sestine_valide.append((s, errore, h_s, somma_s))
             
-            if i % 2000 == 0: prog_bar.progress((i + 1) / total_comb)
+            if i % 2000 == 0: prog.progress((i+1)/len(combs))
         
-        prog_bar.empty()
+        prog.empty()
         
-        if sestine_risultanti:
-            sestine_risultanti.sort(key=lambda x: x[1])
-            st.subheader(f"✨ L'Arrosto: {len(sestine_risultanti)} Sestine Nobili")
-            df_final = pd.DataFrame(sestine_risultanti[:30], columns=['Sestina', 'Errore', 'Rugosità H', 'Somma Totale'])
-            st.table(df_final)
+        if sestine_valide:
+            sestine_valide.sort(key=lambda x: x[1])
+            st.subheader(f"✨ L'Arrosto: {len(sestine_valide)} Sestine Nobili")
+            df_res = pd.DataFrame(sestine_valide[:30], columns=['Sestina', 'Errore', 'Rugosità', 'Somma'])
+            st.table(df_res)
         else:
-            st.error("Nessuna combinazione valida. Espandi il pool o cambia cardini.")
+            st.error("La morsa è troppo stretta o il pool è incompatibile. Prova a cambiare cardini.")
 
 except Exception as e:
-    st.error(f"Errore: {e}")
+    st.error(f"Errore critico: {e}")
