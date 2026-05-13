@@ -1,11 +1,11 @@
-name: Superenalotto Armonia 137 Update
+name: Superenalotto Armonia 137 & Pressione Update
 
 on:
   schedule:
     # Esecuzione alle 20:30 UTC (circa 22:30 ora italiana) 
     # nei giorni di estrazione: Martedì, Giovedì, Venerdì, Sabato.
     - cron: '30 20 * * 2,4,5,6'
-  workflow_dispatch: # Permette l'avvio manuale dal tasto "Run workflow"
+  workflow_dispatch: # Permette l'avvio manuale
 
 jobs:
   build_and_run:
@@ -25,8 +25,32 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas supabase requests numpy beautifulsoup4
 
-      - name: Esecuzione Update Database
+      - name: 1. Esecuzione Update Database
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python update_estrazioni.py
+
+      - name: 2. Esecuzione BLOCCO MOTORE 1 (Analisi Pressione)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python analisi_pressione.py
+
+      - name: 3. Esecuzione Analisi Parisi
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python analisi_parisi.py
+
+      - name: 4. Esecuzione Analisi Risonanza 137
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python analisi_risonanza_137.py
+
+      - name: Archiviazione Risultati (CSV)
+        uses: actions/upload-artifact@v4
+        with:
+          name: report-analisi-superenalotto
+          path: mappa_valli_pressione.csv
