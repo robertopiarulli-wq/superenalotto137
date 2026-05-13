@@ -60,27 +60,27 @@ def carica_report_motori():
     return scienza, valli, sature
 
 # --- UI ---
-st.set_page_config(page_title="Morsa V18 - Sblocca Morsa", layout="wide")
+st.set_page_config(page_title="Morsa V19 - Apertura Totale", layout="wide")
 
 try:
     df_full, blacklist, mappa_ritardi = analizza_dati_freschi()
     scienza, valli, sature = carica_report_motori()
 
-    st.title("🚀 Morsa Scientifica V18: Bilanciamento Forzato")
+    st.title("🚀 Morsa Scientifica V19: Apertura Totale")
 
     # 1. ANALISI POOL
     pool_residuo = [n for n in scienza["pool_eletto"] if n not in blacklist]
     
     col_p1, col_p2 = st.columns([1, 2])
     with col_p1:
-        st.subheader("📋 Superstiti Pool")
+        st.subheader("📋 Nobiltà (Pool Eletto)")
         dati_pool = [{"Numero": n, "Ritardo": mappa_ritardi.get(n, 0)} for n in pool_residuo]
         st.dataframe(pd.DataFrame(dati_pool).sort_values("Ritardo", ascending=False), hide_index=True)
     
     with col_p2:
         if valli:
             valle_target = min(valli, key=lambda x: abs(x[0] - 180))
-            st.success(f"🎯 **Bersaglio Somma**: {valle_target[0]} - {valle_target[1]}")
+            st.success(f"🎯 **Target Somma**: {valle_target[0]} - {valle_target[1]}")
         else:
             valle_target = (150, 250)
             st.warning("Target standard: 150-250")
@@ -92,17 +92,17 @@ try:
     fisse_auto = [int(x) for x in scelta_acc.split("-")] if scelta_acc != "Manuale" else []
 
     cardini = st.sidebar.multiselect("Cardini Attivi (Fisse)", range(1, 91), default=fisse_auto)
-    ampiezza_pool = st.sidebar.slider("Potenza di Calcolo (Pool)", 12, 35, 22)
+    ampiezza_pool = st.sidebar.slider("Potenza di Calcolo (Max Numeri)", 15, 45, 25)
 
     # 3. METRICHE
     target_h = df_full['H'].iloc[0:136].mean() * 0.98
     st.divider()
     m1, m2, m3 = st.columns(3)
-    m1.metric("Rugosità H", f"{target_h:.5f}")
+    m1.metric("Rugosità Bersaglio H", f"{target_h:.5f}")
     m2.metric("Cluster", scienza["cluster_attivo"])
     m3.metric("Blacklist", f"{len(blacklist)} num")
 
-    # 4. GENERAZIONE SBLOCCA-MORSA
+    # 4. GENERAZIONE V19 CON APERTURA TOTALE
     if st.button("🚀 GENERA ARROSTO DETERMINISTICO"):
         somma_fisse = sum(cardini)
         n_mancanti = 6 - len(cardini)
@@ -111,22 +111,22 @@ try:
             centro_valle = (valle_target[0] + valle_target[1]) / 2
             media_target = (centro_valle - somma_fisse) / n_mancanti
             
-            # --- LOGICA V18: SELEZIONE FORZATA DEI PESI ---
-            # Prendiamo i numeri dal pool residuo più vicini alla media necessaria
-            pool_bilanciato = sorted(pool_residuo, key=lambda x: abs(x - media_target))
-            # Integriamo con i più piccoli assoluti del pool se la media è bassa
-            if media_target < 30:
-                extra_small = sorted(pool_residuo)[:10]
-                pool_f = sorted(list(set(cardini + pool_bilanciato[:ampiezza_pool] + extra_small)))
-            else:
-                pool_f = sorted(list(set(cardini + pool_bilanciato[:ampiezza_pool])))
+            # --- LOGICA V19: POOL IBRIDO (NOBILTÀ + POPOLO) ---
+            # Diamo la preferenza alla nobiltà (pool_residuo)
+            pool_nobili = [n for n in pool_residuo if n not in cardini]
             
-            st.info(f"🛠️ Bilanciamento: Media necessaria {int(media_target)}. Pool esteso a {len(pool_f)} numeri.")
+            # Attingiamo a TUTTI i numeri disponibili (1-90) per il bilanciamento
+            tutti_i_numeri = [n for n in range(1, 91) if n not in blacklist and n not in cardini]
+            popolo_bilanciato = sorted(tutti_i_numeri, key=lambda x: abs(x - media_target))
+            
+            # Uniamo i nobili disponibili e aggiungiamo il "popolo" fino alla capienza dello slider
+            pool_f = sorted(list(set(cardini + pool_nobili[:12] + popolo_bilanciato[:ampiezza_pool - 12])))
+            
+            st.info(f"⚖️ Bilanciamento V19: Media necessaria {int(media_target)}. Pool Totale: {len(pool_f)} numeri.")
         else:
             pool_f = sorted(cardini)
 
         sestine_nobili = []
-        # Calcolo combinatorio
         combs = list(itertools.combinations(pool_f, 6))
         prog = st.progress(0)
         
@@ -134,16 +134,18 @@ try:
             s = sorted(list(comb))
             if all(f in s for f in cardini):
                 somma_s = sum(s)
-                # Tolleranza sulla valle di 5 punti per sbloccare l'incastro
+                # Tolleranza valle elastica
                 if (valle_target[0]-5 < somma_s <= valle_target[1]+5):
                     if not any(s_f[0] < somma_s <= s_f[1] for s_f in sature):
                         h_s = calcola_rugosita(s)
-                        # Tolleranza H elastica al 12%
-                        if abs(h_s - target_h) < (target_h * 0.12):
+                        # Morsa Rugosità 15%
+                        if abs(h_s - target_h) < (target_h * 0.15):
                             err = abs(h_s - target_h)
                             sestine_nobili.append((s, err, h_s, somma_s))
             
-            if i % 10000 == 0: prog.progress((i+1)/len(combs))
+            # Limite per evitare crash (1.5M combinazioni)
+            if i > 1500000: break
+            if i % 20000 == 0: prog.progress(min((i+1)/len(combs), 1.0))
         prog.empty()
         
         if sestine_nobili:
@@ -151,7 +153,7 @@ try:
             st.table(pd.DataFrame(sorted(sestine_nobili, key=lambda x: x[1])[:30], 
                                  columns=['Sestina', 'Errore', 'Rugosità', 'Somma']))
         else:
-            st.error("Incastro ancora assente. Suggerimento: usa solo 1 cardine o aumenta la slider a 35.")
+            st.error("Incastro non trovato. Prova ad alzare la slider (Max Numeri) o a cambiare i cardini.")
 
 except Exception as e:
     st.error(f"Errore: {e}")
