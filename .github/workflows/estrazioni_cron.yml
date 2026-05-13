@@ -1,4 +1,4 @@
-name: Superenalotto Armonia 137 & Pressione Update
+name: Superenalotto Armonia 137 Update
 
 on:
   schedule:
@@ -8,10 +8,8 @@ on:
 jobs:
   build_and_run:
     runs-on: ubuntu-latest
-    
-    # Permessi espliciti per la scrittura
     permissions:
-      contents: write
+      contents: write # Essenziale per salvare i dati
     
     steps:
       - name: Checkout Repository
@@ -33,28 +31,22 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python update_estrazioni.py
 
-      - name: 2. Analisi Pressione (Generazione Mappa)
+      - name: 2. Generazione Mappa Pressione
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python analisi_pressione.py
 
-      - name: 3. Analisi Risonanza (Generazione Cardini)
+      - name: 3. Generazione Cardini Scientifici
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python analisi_risonanza_137.py
 
-      - name: 4. Esecuzione Analisi Parisi
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: python analisi_parisi.py
-
-      - name: 5. Commit e Push dei risultati scientifici
+      - name: 4. Commit e Push dei risultati
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add mappa_valli_pressione.csv cardini_scientifici.json
-          git commit -m "Update dati scientifici: Valli e Cardini [skip ci]" || echo "Nessuna modifica da caricare"
+          git commit -m "Aggiornamento automatico cardini e valli [skip ci]" || echo "Nessuna modifica rilevata"
           git push
