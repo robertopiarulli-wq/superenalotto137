@@ -9,6 +9,10 @@ jobs:
   build_and_run:
     runs-on: ubuntu-latest
     
+    # Permessi espliciti per la scrittura
+    permissions:
+      contents: write
+    
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -29,7 +33,7 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python update_estrazioni.py
 
-      - name: 2. Analisi Pressione (Mappa Valli)
+      - name: 2. Analisi Pressione (Generazione Mappa)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
@@ -41,10 +45,16 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python analisi_risonanza_137.py
 
-      - name: 4. Commit e Push dei risultati scientifici
+      - name: 4. Esecuzione Analisi Parisi
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python analisi_parisi.py
+
+      - name: 5. Commit e Push dei risultati scientifici
         run: |
-          git config --global user.name "GitHub Action"
-          git config --global user.email "action@github.com"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add mappa_valli_pressione.csv cardini_scientifici.json
-          git commit -m "Update dati scientifici [skip ci]" || echo "No changes to commit"
+          git commit -m "Update dati scientifici: Valli e Cardini [skip ci]" || echo "Nessuna modifica da caricare"
           git push
