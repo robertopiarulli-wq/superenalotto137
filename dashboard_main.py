@@ -233,7 +233,10 @@ try:
             s = sorted(list(comb))
             if all(f in s for f in cardini):
                 somma_s = sum(s)
-                if (valle_target[0]-5 < somma_s <= valle_target[1]+5) and not any(sf[0]<somma_s<=sf[1] for sf in sature if sf != valle_target):
+                # NUOVO CODICE CON DEROGA PER ANTIDOTO ALTI 
+                if (valle_target[0]-5 < somma_s <= valle_target[1]+5):     
+                    # Applica il filtro saturo solo alle fasce che non appartengono al nostro target di ripiego     
+                    check_saturazione = any(sf[0]<somma_s<=sf[1] for sf in sature if sf[0] < 220)     if not check_saturazione:         if abs(calcola_rugosita(s) - target_h) < (target_h * 0.15):             sestine_nobili.append(s)
                     if abs(calcola_rugosita(s) - target_h) < (target_h * 0.15):
                         sestine_nobili.append(s)
             if i > 1500000: break
