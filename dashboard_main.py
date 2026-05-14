@@ -63,7 +63,7 @@ def carica_report_motori():
             
     return scienza, valli, sature, antidoto_attivo
 
-# --- MODULO RADAR ANOMALIE V22 (NUOVI FILTRI GEOMETRICI) ---
+# --- MODULO RADAR ANOMALIE V22 (FILTRI GEOMETRICI SELETTIVI) ---
 def motore_radar_anomalie(df):
     blocchi_A = list(range(1, 16)) + list(range(31, 46)) + list(range(61, 76))
     blocchi_B = list(range(16, 31)) + list(range(46, 61)) + list(range(76, 91))
@@ -130,7 +130,7 @@ try:
     with col_radar:
         st.dataframe(df_radar, hide_index=True)
     with col_valle:
-        # LOGICA DI SINCRONIZZAZIONE REALE CON L'ANTIDOTO DEL MOTORE DI PRESSIONE
+        # LOGICA DI SINCRONIZZAZIONE CON L'ANTIDOTO DEL MOTORE DI PRESSIONE
         if valli and not antidoto_attivo:
             valle_target = min(valli, key=lambda x: abs(x[0] - 180))
             st.success(f"🎯 **Wyckoff Valle Attiva**: {valle_target[0]} - {valle_target[1]}")
@@ -177,7 +177,7 @@ try:
         st.write("**Pool Nobiltà Fuori Target Temporaneo:**")
         st.code(f"{[n for n in pool_residuo if n not in pool_sincro]}")
 
-    # 3. SIDEBAR PARAMETRI CON INTEGRAZIONE COODINATA DEI NUCLEI
+    # 3. SIDEBAR PARAMETRI CON INTEGRAZIONE COORDINATA DEI NUCLEI
     st.sidebar.header("🎯 Parametri di Gioco")
     
     opzioni_nuclei = ["Manuale"]
@@ -189,7 +189,7 @@ try:
 
     cardini = st.sidebar.multiselect("Cardini Attivi (Fisse)", range(1, 91), default=fisse_auto if fisse_auto else (pool_sincro[:2] if pool_sincro else []))
     ampiezza_pool = st.sidebar.slider("Potenza di Espansione Popolo (Slider)", 15, 45, 25)
-    tipo_riduzione = st.sidebar.selectbox("Filtro Riduttore Ottimizzato", ["Nessuna", "Garanzia 4", "Garanzia 5"])
+    tipo_riduzione = st.sidebar.selectbox("Filtro Riduttore Optimizzato", ["Nessuna", "Garanzia 4", "Garanzia 5"])
 
     # Metriche generali
     target_h = df_full['H'].iloc[0:136].mean() * 0.98
@@ -223,7 +223,7 @@ try:
     st.info(f"Prima della generazione, la morsa ha selezionato un set ristretto di **{len(pool_f)} numeri candidati** compatibili con i criteri attuali.")
     st.code(f"Numeri pronti al calcolo combinatorio: {pool_f}")
 
-    # 5. MOTOR COMBINATORIO E GENERAZIONE
+    # 5. MOTORE COMBINATORIO E GENERAZIONE (STRUTTURA CORRETTA)
     if st.button("🚀 GENERA ARROSTO SINCRONIZZATO V22"):
         sestine_nobili = []
         combs = list(itertools.combinations(pool_f, 6))
@@ -233,12 +233,18 @@ try:
             s = sorted(list(comb))
             if all(f in s for f in cardini):
                 somma_s = sum(s)
-                # NUOVO CODICE CON DEROGA PER ANTIDOTO ALTI 
-                if (valle_target[0]-5 < somma_s <= valle_target[1]+5):     
-                    # Applica il filtro saturo solo alle fasce che non appartengono al nostro target di ripiego     
-                    check_saturazione = any(sf[0]<somma_s<=sf[1] for sf in sature if sf[0] < 220)     if not check_saturazione:         if abs(calcola_rugosita(s) - target_h) < (target_h * 0.15):             sestine_nobili.append(s)
-                    if abs(calcola_rugosita(s) - target_h) < (target_h * 0.15):
-                        sestine_nobili.append(s)
+                
+                # Controllo Target di Somma Sincronizzato (220-245)
+                if (valle_target[0] - 5 < somma_s <= valle_target[1] + 5):
+                    
+                    # Escludiamo le valli sature inferiori lasciando via libera all'antidoto alto
+                    check_saturazione = any(sf[0] < somma_s <= sf[1] for sf in sature if sf[0] < 220)
+                    
+                    if not check_saturazione:
+                        # Controllo Rugosità H
+                        if abs(calcola_rugosita(s) - target_h) < (target_h * 0.15):
+                            sestine_nobili.append(s)
+                            
             if i > 1500000: break
             if i % 25000 == 0: prog.progress(min((i+1)/len(combs) if len(combs)>0 else 1, 1.0))
         prog.empty()
