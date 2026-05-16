@@ -30,20 +30,23 @@ def analizza_dati_freschi():
     cols = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6']
     
     # ----------------------------------------------------------------------
-    # MOTORE DI SCREMATURA INIZIALE V23 (137 ESTRAZIONI)
+    # MOTOR DI SCREMATURA INIZIALE V23 (137 ESTRAZIONI)
     # ----------------------------------------------------------------------
+    # FILTRO 1: Esclusione chirurgica dei soli 6 numeri dell'ultima estrazione
     blacklist_filtro1 = set(df.iloc[0][cols].values.flatten())
+    
+    # Segmentazione dello storico fisso a 137 estrazioni per i Filtri 2 e 3
     df_137 = df.head(137)
     tutti_i_numeri_137 = df_137[cols].values.flatten()
     
-    # FILTRO 2: 14 numeri MENO FREQUENTI nelle ultime 137
+    # FILTRO 2: Individuazione dei 14 numeri MENO FREQUENTI nelle ultime 137
     conteggio_frequenze = pd.Series(tutti_i_numeri_137).value_counts()
     for n in range(1, 91):
         if n not in conteggio_frequenze: 
             conteggio_frequenze[n] = 0
     meno_frequenti = set(conteggio_frequenze.nsmallest(14).index)
     
-    # FILTRO 3: 14 numeri PIÙ RITARDATARI nelle ultime 137
+    # FILTRO 3: Individuazione dei 14 numeri PIÙ RITARDATARI nelle ultime 137
     ritardi_137 = {}
     for n in range(1, 91):
         found = False
@@ -56,7 +59,9 @@ def analizza_dati_freschi():
             ritardi_137[n] = 137
     piu_ritardatari = set(pd.Series(ritardi_137).nlargest(14).index)
     
+    # Unione matematica delle tre barriere di pulizia quantitative
     blacklist = blacklist_filtro1.union(meno_frequenti).union(piu_ritardatari)
+    # ----------------------------------------------------------------------
     
     return df, blacklist, ritardi_137, blacklist_filtro1, meno_frequenti, piu_ritardatari
 
@@ -97,7 +102,9 @@ def calcola_statistiche_macro_fasce(df_137):
         rit = 0
         for _, row in df_137.iterrows():
             somma = row.n1 + row.n2 + row.n3 + row.n4 + row.n5 + row.n6
-            if limiti[0] <= somma <= limiti[1] if chiave == "BANCO" else limiti[0] < somma <= limiti[1]:
+            # Gestione inclusiva corretta dei limiti di fascia
+            condizione = (limiti[0] <= somma <= limiti[1]) if chiave == "BANCO" else (limiti[0] < somma <= limiti[1])
+            if condizione:
                 break
             rit += 1
         risultati[chiave]["rit"] = rit
@@ -154,7 +161,7 @@ def riduttore_garantito(sestine, garanzia=4):
         lista_sestine = [s for s in lista_sestine if len(set(s) & set(base)) < garanzia]
     return ridotte
 
-# --- UI ---
+# --- UI INTERFACCIA COMPLETA ---
 st.set_page_config(page_title="Morsa V23.1 - Monitor Antidoto", layout="wide")
 
 try:
@@ -192,7 +199,7 @@ try:
     with col_radar:
         st.dataframe(df_radar, hide_index=True)
     with col_valle:
-        # INSERIMENTO TABELLA LIVE CON VALORI DI RITARDO E FREQUENZA DELLE 3 FASCE SULLE ULTIME 137 ESTRAZIONI
+        # TABELLA LIVE CON VALORI DI RITARDO E FREQUENZA DELLE 3 FASCE SULLE ULTIME 137 ESTRAZIONI
         st.write("**📊 Metriche Live delle Macro-Fasce (Ultime 137 estrazioni):**")
         df_stats_print = pd.DataFrame([
             {"Macro-Fascia": "BANCO [115, 170]", "Frequenza (Uscite)": stats_macro["BANCO"]["freq"], "Ritardo Attuale": stats_macro["BANCO"]["rit"]},
@@ -270,7 +277,7 @@ try:
     ampiezza_pool = st.sidebar.slider("Potenza di Espansione Popolo (Slider)", 15, 45, 25)
     tipo_riduzione = st.sidebar.selectbox("Filtro Riduttore Ottimizzato", ["Nessuna", "Garanzia 4", "Garanzia 5"])
 
-    # Metriche generali
+    # Metriche generali di configurazione
     target_h = df_full['H'].iloc[0:136].mean() * 0.98
     st.divider()
     m1, m2, m3 = st.columns(3)
@@ -285,7 +292,7 @@ try:
     
     tutti_i_numeri = [n for n in range(1, 91) if n not in blacklist and n not in cardini]
     
-    # Applica i vincoli geometrici scelti anche al popolo di compensazione
+    # Applica i vincoli geometrici scelti anche al popolo di compensazione dello slider
     if "Under 45" in filtro_sincro: tutti_i_numeri = [n for n in tutti_i_numeri if n <= 45]
     elif "Over 45" in filtro_sincro: tutti_i_numeri = [n for n in tutti_i_numeri if n >= 46]
     elif "Media" in filtro_sincro: tutti_i_numeri = [n for n in tutti_i_numeri if 20 <= n <= 70]
@@ -302,7 +309,7 @@ try:
     st.info(f"Prima della generazione, la morsa ha selezionato un set ristretto di **{len(pool_f)} numeri candidati** compatibili con i criteri attuali e depurati dai 3 nuovi filtri.")
     st.code(f"Numeri pronti al calcolo combinatorio: {pool_f}")
 
-    # 5. MOTORE COMBINATORIO E GENERAZIONE V23
+    # 5. MOTORE COMBINATORIO E GENERAZIONE V23.1
     if st.button("🚀 GENERA ARROSTO SINCRONIZZATO V23"):
         sestine_nobili = []
         combs = list(itertools.combinations(pool_f, 6))
@@ -316,7 +323,7 @@ try:
                 # Controllo Target di Somma Sincronizzato sulla Macro-Fascia Scelta
                 if (valle_target[0] <= somma_s <= valle_target[1]):
                     
-                    # Esclusione delle sole valli sature inferiori a 220 per non bloccare l'azione sul Tetto
+                    # Esclusione delle sole valli sature inferiori a 220 per lasciare via libera all'antidoto alto (Tetto)
                     check_saturazione = any(sf[0] < somma_s <= sf[1] for sf in sature if sf[0] < 220)
                     
                     if not check_saturazione:
@@ -330,11 +337,11 @@ try:
 
         risultato = riduttore_garantito(sestine_nobili, 5 if "5" in tipo_riduzione else 4) if tipo_riduzione != "Nessuna" else sestine_nobili
 
-        st.subheader("📄 Report Strategico di Selezione (V23)")
+        st.subheader("📄 Report Strategico di Selezione (V23.1)")
         cr1, cr2 = st.columns(2)
         with cr1:
             st.markdown(f"""
-            **Configurazione Algoritmica V23:**
+            **Configurazione Algoritmica V23.1:**
             * **Filtro Sincro Geometrico**: {filtro_sincro}
             * **Cardini Bloccati (Fisse)**: {cardini}
             * **Macro-Fascia Selezionata**: {scelta_macro.split(':')[0]}
@@ -353,4 +360,4 @@ try:
             st.error("Nessun incastro trovato. Modifica l'ampiezza dello slider o cambia fisse per ricentrare la media target della macro-fascia.")
 
 except Exception as e:
-    st.error(f"Errore generale: {e}")
+    st.error(f"Errore generale nel caricamento o nell'esecuzione: {e}")
