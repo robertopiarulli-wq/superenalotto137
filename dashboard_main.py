@@ -30,23 +30,20 @@ def analizza_dati_freschi():
     cols = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6']
     
     # ----------------------------------------------------------------------
-    # NUOVO MOTORE DI SCREMATURA INIZIALE V23 (137 ESTRAZIONI)
+    # MOTORE DI SCREMATURA INIZIALE V23 (137 ESTRAZIONI)
     # ----------------------------------------------------------------------
-    # FILTRO 1: Esclusione chirurgica dei soli 6 numeri dell'ultima estrazione
     blacklist_filtro1 = set(df.iloc[0][cols].values.flatten())
-    
-    # Segmentazione dello storico fisso a 137 estrazioni per i Filtri 2 e 3
     df_137 = df.head(137)
     tutti_i_numeri_137 = df_137[cols].values.flatten()
     
-    # FILTRO 2: Individuazione dei 14 numeri MENO FREQUENTI nelle ultime 137
+    # FILTRO 2: 14 numeri MENO FREQUENTI nelle ultime 137
     conteggio_frequenze = pd.Series(tutti_i_numeri_137).value_counts()
     for n in range(1, 91):
         if n not in conteggio_frequenze: 
             conteggio_frequenze[n] = 0
     meno_frequenti = set(conteggio_frequenze.nsmallest(14).index)
     
-    # FILTRO 3: Individuazione dei 14 numeri PIÙ RITARDATARI nelle ultime 137
+    # FILTRO 3: 14 numeri PIÙ RITARDATARI nelle ultime 137
     ritardi_137 = {}
     for n in range(1, 91):
         found = False
@@ -59,9 +56,7 @@ def analizza_dati_freschi():
             ritardi_137[n] = 137
     piu_ritardatari = set(pd.Series(ritardi_137).nlargest(14).index)
     
-    # Unione matematica delle tre barriere di pulizia
     blacklist = blacklist_filtro1.union(meno_frequenti).union(piu_ritardatari)
-    # ----------------------------------------------------------------------
     
     return df, blacklist, ritardi_137, blacklist_filtro1, meno_frequenti, piu_ritardatari
 
@@ -81,12 +76,35 @@ def carica_report_motori():
                 valli.append(f_range)
             elif row['stato_zona'] == 'SATURA': 
                 sature.append(f_range)
-                if row.get('antidoto_suggerito') == 'BILANCIARE_CON_ALTI':
+                if str(row.get('antidoto_suggerito')) == 'BILANCIARE_CON_ALTI':
                     antidoto_attivo = 'BILANCIARE_CON_ALTI'
             
     return scienza, valli, sature, antidoto_attivo
 
-# --- MODULO RADAR ANOMALIE V23 (FILTRI GEOMETRICI SELETTIVI) ---
+# Funzione statistica interna per calcolare ritardi e frequenze correnti delle macro-fasce nelle ultime 137 estrazioni
+def calcola_statistiche_macro_fasce(df_137):
+    risultati = {"BANCO": {"freq": 0, "rit": 0}, "CUORE": {"freq": 0, "rit": 0}, "TETTO": {"freq": 0, "rit": 0}}
+    
+    # Calcolo frequenze totali nel blocco
+    for _, row in df_137.iterrows():
+        somma = row.n1 + row.n2 + row.n3 + row.n4 + row.n5 + row.n6
+        if 115 <= somma <= 170: risultati["BANCO"]["freq"] += 1
+        elif 170 < somma <= 215: risultati["CUORE"]["freq"] += 1
+        elif 215 < somma <= 270: risultati["TETTO"]["freq"] += 1
+        
+    # Calcolo ritardi attuali
+    for chiave, limiti in [("BANCO", (115, 170)), ("CUORE", (170, 215)), ("TETTO", (215, 270))]:
+        rit = 0
+        for _, row in df_137.iterrows():
+            somma = row.n1 + row.n2 + row.n3 + row.n4 + row.n5 + row.n6
+            if limiti[0] <= somma <= limiti[1] if chiave == "BANCO" else limiti[0] < somma <= limiti[1]:
+                break
+            rit += 1
+        risultati[chiave]["rit"] = rit
+        
+    return risultati
+
+# --- MODULO RADAR ANOMALIE V23 ---
 def motore_radar_anomalie(df):
     blocchi_A = list(range(1, 16)) + list(range(31, 46)) + list(range(61, 76))
     blocchi_B = list(range(16, 31)) + list(range(46, 61)) + list(range(76, 91))
@@ -137,15 +155,16 @@ def riduttore_garantito(sestine, garanzia=4):
     return ridotte
 
 # --- UI ---
-st.set_page_config(page_title="Morsa V23 - Macro Fasce & Triplo Filtro", layout="wide")
+st.set_page_config(page_title="Morsa V23.1 - Monitor Antidoto", layout="wide")
 
 try:
     df_full, blacklist, mappa_ritardi, f1_last, f2_freq, f3_rit = analizza_dati_freschi()
     scienza, valli, sature, antidoto_attivo = carica_report_motori()
+    stats_macro = calcola_statistiche_macro_fasce(df_full.head(137))
 
-    st.title("🚀 Morsa Scientifica V23: Macro-Fasce Wyckoff & Riduzione Pre-Combinatoria")
+    st.title("🚀 Morsa Scientifica V23.1: Macro-Fasce Wyckoff & Riduzione Pre-Combinatoria")
 
-    # SPECCHIETTO DETTAGLIATO DEI NUOVI FILTRI IN TOP PAGE
+    # SPECCHIETTO DETTAGLIATO DEI FILTRI IN TOP PAGE
     with st.expander("🔍 Dettaglio Scrematura Quantitativa V23 (Attiva sulle ultime 137 estrazioni)"):
         c_f1, c_f2, c_f3 = st.columns(3)
         with c_f1:
@@ -159,6 +178,12 @@ try:
             st.code(f"{sorted(list(f3_rit))}")
         st.success(f"Massa Critica Blacklist Totale (incluse sovrapposizioni): {len(blacklist)} numeri eliminati alla partenza.")
 
+    # RIPRISTINO INDICATORE AUTOMATICO DELL'ANTIDOTO IN CASO DI SATURAZIONE DELLE VALLI MEDIE
+    if antidoto_attivo == 'BILANCIARE_CON_ALTI':
+        st.error("🚨 ALERT PRESSIONE SATURE: Il Motore 1 consiglia l'Antidoto attivo -> BILANCIARE_CON_ALTI. Si consiglia di forzare il gioco sulla fascia TETTO.")
+    else:
+        st.info("ℹ️ Stato Pressione: Nessun Antidoto forzato rilevato nel report valli di pressione.")
+
     # 1. RADAR ANOMALIE & MONITORAGGIO MACRO-FASCE WYCKOFF
     st.subheader("📡 Radar Casi Rari & Selettore Macro-Fasce Wyckoff")
     df_radar = motore_radar_anomalie(df_full)
@@ -167,8 +192,16 @@ try:
     with col_radar:
         st.dataframe(df_radar, hide_index=True)
     with col_valle:
-        # NUOVA STRUTTURA A 3 MACRO-FASCE DOMINANTI DI GIOCO
-        st.write("**Seleziona la Macro-Fascia Propizia per Stasera:**")
+        # INSERIMENTO TABELLA LIVE CON VALORI DI RITARDO E FREQUENZA DELLE 3 FASCE SULLE ULTIME 137 ESTRAZIONI
+        st.write("**📊 Metriche Live delle Macro-Fasce (Ultime 137 estrazioni):**")
+        df_stats_print = pd.DataFrame([
+            {"Macro-Fascia": "BANCO [115, 170]", "Frequenza (Uscite)": stats_macro["BANCO"]["freq"], "Ritardo Attuale": stats_macro["BANCO"]["rit"]},
+            {"Macro-Fascia": "CUORE (170, 215]", "Frequenza (Uscite)": stats_macro["CUORE"]["freq"], "Ritardo Attuale": stats_macro["CUORE"]["rit"]},
+            {"Macro-Fascia": "TETTO (215, 270]", "Frequenza (Uscite)": stats_macro["TETTO"]["freq"], "Ritardo Attuale": stats_macro["TETTO"]["rit"]},
+        ])
+        st.dataframe(df_stats_print, hide_index=True)
+
+        st.write("**🎯 Seleziona la Macro-Fascia di Target del calcolo:**")
         scelta_macro = st.radio(
             "Target Wyckoff Compresso:",
             ["BANCO (Somme Basse / Compressione): [115, 170]", 
