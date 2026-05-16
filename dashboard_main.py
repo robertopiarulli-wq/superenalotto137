@@ -122,13 +122,26 @@ def calcola_statistiche_macro_fasce(df_137):
         
     return risultati
 
+# MAPPA DELLE GEOMETRIE COMPLESSE PER IL RADAR E LA VALVOLA DI CODA
+blocchi_A = list(range(1, 16)) + list(range(31, 46)) + list(range(61, 76))
+blocchi_B = list(range(16, 31)) + list(range(46, 61)) + list(range(76, 91))
+blocchi_C = list(range(1, 16)) + list(range(46, 76))
+blocchi_D = list(range(16, 46)) + list(range(76, 91))
+
+def test_geometria_valvola(profilo, sestina):
+    if profilo == "Solo Under 45": return all(n <= 45 for n in sestina)
+    if profilo == "Solo Over 45": return all(n >= 46 for n in sestina)
+    if profilo == "Solo Pari": return all(n % 2 == 0 for n in sestina)
+    if profilo == "Solo Dispari": return all(n % 2 != 0 for n in sestina)
+    if profilo == "Solo Media (20-70)": return all(20 <= n <= 70 for n in sestina)
+    if profilo == "Solo Alternata A": return all(n in blocchi_A for n in sestina)
+    if profilo == "Solo Alternata B": return all(n in blocchi_B for n in sestina)
+    if profilo == "Solo Alternata C": return all(n in blocchi_C for n in sestina)
+    if profilo == "Solo Alternata D": return all(n in blocchi_D for n in sestina)
+    return True
+
 # --- MODULO RADAR ANOMALIE V23 ---
 def motore_radar_anomalie(df):
-    blocchi_A = list(range(1, 16)) + list(range(31, 46)) + list(range(61, 76))
-    blocchi_B = list(range(16, 31)) + list(range(46, 61)) + list(range(76, 91))
-    blocchi_C = list(range(1, 16)) + list(range(46, 76))
-    blocchi_D = list(range(16, 46)) + list(range(76, 91))
-
     profili = {
         "Fascia Under 45": lambda s: all(n <= 45 for n in s),
         "Fascia Over 45": lambda s: all(n >= 46 for n in s),
@@ -173,16 +186,16 @@ def riduttore_garantito(sestine, garanzia=4):
     return ridotte
 
 # --- UI INTERFACCIA ---
-st.set_page_config(page_title="Morsa V23.2 - Correzione Falla", layout="wide")
+st.set_page_config(page_title="Morsa V23.3 - Valvola Energetica", layout="wide")
 
 try:
     df_full, blacklist, mappa_ritardi, f1_last, f2_freq, f3_rit = analizza_dati_freschi()
     scienza, valli, sature, antidoto_attivo = carica_report_motori()
     stats_macro = calcola_statistiche_macro_fasce(df_full.head(137))
 
-    st.title("🚀 Morsa Scientifica V23.2: Macro-Fasce Wyckoff & Riduzione Pre-Combinatoria")
+    st.title("🚀 Morsa Scientifica V23.3: Valvola Selettiva Post-Combinatoria")
 
-    # SPECCHIETTO DETTAGLIATO DEI FILTRI IN TOP PAGE (CON GERARCHIA CORRETTA)
+    # SPECCHIETTO DETTAGLIATO DEI FILTRI IN TOP PAGE
     with st.expander("🔍 Dettaglio Scrematura Quantitativa V23.2 (Anticipazione Filtro 1 Garantita)"):
         c_f1, c_f2, c_f3 = st.columns(3)
         with c_f1:
@@ -245,33 +258,13 @@ try:
         
     pool_residuo = [n for n in scienza["pool_eletto"] if n not in blacklist]
     
-    filtro_sincro = st.selectbox("🎯 Filtra ed Isola il Pool Eletto per Fascia Geometrica:", 
+    # MODIFICA V23.3: Diventa una valvola di scarico post-calcolo! I numeri rimangono liberi alla partenza.
+    filtro_sincro = st.selectbox("🎯 APPLICA VALVOLA GEOMETRICA (Sincronizza il profilo Critico del Radar stasera):", 
                                 ["Nessuno", "Solo Under 45", "Solo Over 45", "Solo Pari", "Solo Dispari", 
                                  "Solo Media (20-70)", "Solo Alternata A", "Solo Alternata B", "Solo Alternata C", "Solo Alternata D"])
-    
-    b_A = list(range(1, 16)) + list(range(31, 46)) + list(range(61, 76))
-    b_B = list(range(16, 31)) + list(range(46, 61)) + list(range(76, 91))
-    b_C = list(range(1, 16)) + list(range(46, 76))
-    b_D = list(range(16, 46)) + list(range(76, 91))
 
-    if filtro_sincro == "Solo Under 45": pool_sincro = [n for n in pool_residuo if n <= 45]
-    elif filtro_sincro == "Solo Over 45": pool_sincro = [n for n in pool_residuo if n >= 46]
-    elif filtro_sincro == "Solo Pari": pool_sincro = [n for n in pool_residuo if n % 2 == 0]
-    elif filtro_sincro == "Solo Dispari": pool_sincro = [n for n in pool_residuo if n % 2 != 0]
-    elif filtro_sincro == "Solo Media (20-70)": pool_sincro = [n for n in pool_residuo if 20 <= n <= 70]
-    elif filtro_sincro == "Solo Alternata A": pool_sincro = [n for n in pool_residuo if n in b_A]
-    elif filtro_sincro == "Solo Alternata B": pool_sincro = [n for n in pool_residuo if n in b_B]
-    elif filtro_sincro == "Solo Alternata C": pool_sincro = [n for n in pool_residuo if n in b_C]
-    elif filtro_sincro == "Solo Alternata D": pool_sincro = [n for n in pool_residuo if n in b_D]
-    else: pool_sincro = pool_residuo
-
-    c1, c2 = st.columns(2)
-    with c1:
-        st.write("**Pool Superstiti Sincronizzati (Usa come fisse/cardini):**")
-        st.code(f"{pool_sincro}")
-    with c2:
-        st.write("**Pool Nobiltà Fuori Target Temporaneo:**")
-        st.code(f"{[n for n in pool_residuo if n not in pool_sincro]}")
+    st.write("**Pool Superstiti Nobili Completi (Usa come fisse/cardini):**")
+    st.code(f"{pool_residuo}")
 
     # 3. SIDEBAR PARAMETRI CON INTEGRAZIONE COORDINATA DEI NUCLEI
     st.sidebar.header("🎯 Parametri di Gioco")
@@ -283,7 +276,7 @@ try:
     scelta_acc = st.sidebar.selectbox("🔥 Carica Coppia Nucleo Accelerato:", opzioni_nuclei)
     fisse_auto = [int(x) for x in scelta_acc.split("-")] if scelta_acc != "Manuale" else []
 
-    cardini = st.sidebar.multiselect("Cardini Attivi (Fisse)", range(1, 91), default=fisse_auto if fisse_auto else (pool_sincro[:2] if pool_sincro else []))
+    cardini = st.sidebar.multiselect("Cardini Attivi (Fisse)", range(1, 91), default=fisse_auto if fisse_auto else (pool_residuo[:2] if pool_residuo else []))
     ampiezza_pool = st.sidebar.slider("Potenza di Espansione Popolo (Slider)", 15, 45, 25)
     tipo_riduzione = st.sidebar.selectbox("Filtro Riduttore Ottimizzato", ["Nessuna", "Garanzia 4", "Garanzia 5"])
 
@@ -294,30 +287,23 @@ try:
     m2.metric("Cluster Attivo", scienza.get("cluster_attivo", "Non rilevato"))
     m3.metric("Filtro Totale Blacklist (V23.2)", f"{len(blacklist)} num")
 
-    # PRE-CALCOLO PREVENTIVO DEI CANDIDATI SUPERSTITI
+    # PRE-CALCOLO PREVENTIVO DEI CANDIDATI SUPERSTITI (COMPLETO E BILANCIATO PER LE SOMME)
     somma_fisse = sum(cardini)
     n_mancanti = 6 - len(cardini)
     media_target = (sum(valle_target)/2 - somma_fisse) / n_mancanti if n_mancanti > 0 else 0
     
     tutti_i_numeri = [n for n in range(1, 91) if n not in blacklist and n not in cardini]
-    
-    if "Under 45" in filtro_sincro: tutti_i_numeri = [n for n in tutti_i_numeri if n <= 45]
-    elif "Over 45" in filtro_sincro: tutti_i_numeri = [n for n in tutti_i_numeri if n >= 46]
-    elif "Media" in filtro_sincro: tutti_i_numeri = [n for n in tutti_i_numeri if 20 <= n <= 70]
-    elif "Alternata A" in filtro_sincro: tutti_i_numeri = [n for n in tutti_i_numeri if n in b_A]
-    elif "Alternata B" in filtro_sincro: tutti_i_numeri = [n for n in tutti_i_numeri if n in b_B]
-    elif "Alternata C" in filtro_sincro: tutti_i_numeri = [n for n in tutti_i_numeri if n in b_C]
-    elif "Alternata D" in filtro_sincro: tutti_i_numeri = [n for n in tutti_i_numeri if n in b_D]
-    
     popolo = sorted(tutti_i_numeri, key=lambda x: abs(x - media_target))
-    pool_f = sorted(list(set(cardini + pool_sincro + popolo[:ampiezza_pool - len(pool_sincro)])))
+    
+    # Il pool finale si compone liberamente garantendo che l'algoritmo possa far incastrare la Somma Wyckoff
+    pool_f = sorted(list(set(cardini + pool_residuo + popolo[:ampiezza_pool - len(pool_residuo)])))
 
     # 4. EVIDENZIAZIONE DEI CANDIDATI SUPERSTITI REALI
     st.subheader("🕵️ Analisi Preventiva dei Candidati Superstiti")
-    st.info(f"Prima della generazione, la morsa ha selezionato un set ristretto di **{len(pool_f)} numeri candidati** compatibili con i criteri attuels e depurati senza sovrapposizioni.")
+    st.info(f"Prima della generazione, la morsa ha selezionato un set di **{len(pool_f)} numeri candidati** bilanciati per le medie Wyckoff.")
     st.code(f"Numeri pronti al calcolo combinatorio: {pool_f}")
 
-    # 5. MOTORE COMBINATORIO E GENERAZIONE V23.2
+    # 5. MOTORE COMBINATORIO E GENERAZIONE V23.3 CON VALVOLA DI SCARICO
     if st.button("🚀 GENERA ARROSTO SINCRONIZZATO V23"):
         sestine_nobili = []
         combs = list(itertools.combinations(pool_f, 6))
@@ -328,32 +314,36 @@ try:
             if all(f in s for f in cardini):
                 somma_s = sum(s)
                 
+                # VINCOLO 1: LA STRUTTURA ENERGETICA WYCKOFF (LA SOMMA COMANDA)
                 if (valle_target[0] <= somma_s <= valle_target[1]):
                     check_saturazione = any(sf[0] < somma_s <= sf[1] for sf in sature if sf[0] < 220)
                     
                     if not check_saturazione:
+                        # VINCOLO 2: RUGOSITÀ H (PARISI)
                         if abs(calcola_rugosita(s) - target_h) < (target_h * 0.15):
-                            sestine_nobili.append(s)
                             
-            if i > 1500000: break
-            if i % 25000 == 0: prog.progress(min((i+1)/len(combs) if len(combs)>0 else 1, 1.0))
+                            # 🚨 SELEZIONE CHIRURGICA: Applica la Valvola Geometrica Post-Generazione!
+                            if test_geometria_valvola(filtro_sincro, s):
+                                sestine_nobili.append(s)
+                            
+            if i > 2500000: break # Alzato a 2.5 Mln per dare respiro al calcolo e non strozzare le combinazioni
+            if i % 50000 == 0: prog.progress(min((i+1)/len(combs) if len(combs)>0 else 1, 1.0))
         prog.empty()
 
         risultato = riduttore_garantito(sestine_nobili, 5 if "5" in tipo_riduzione else 4) if tipo_riduzione != "Nessuna" else sestine_nobili
 
-        st.subheader("📄 Report Strategico di Selezione (V23.2)")
+        st.subheader("📄 Report Strategico di Selezione (V23.3)")
         cr1, cr2 = st.columns(2)
         with cr1:
             st.markdown(f"""
-            **Configurazione Algoritmica V23.2:**
-            * **Filtro Sincro Geometrico**: {filtro_sincro}
+            **Configurazione Algoritmica V23.3:**
+            * **Valvola Geometrica Attiva (Post-Calcolo)**: {filtro_sincro}
             * **Cardini Bloccati (Fisse)**: {cardini}
             * **Macro-Fascia Selezionata**: {scelta_macro.split(':')[0]}
             * **Intervallo di Somma Effettivo**: {valle_target[0]}-{valle_target[1]}
-            * **Media Richiesta per Incastro**: {int(media_target)}
             """)
         with cr2:
-            st.metric("Sestine Totali Generate", len(sestine_nobili))
+            st.metric("Sestine Passate dalla Valvola", len(sestine_nobili))
             st.metric("Sestine Superstiti Ottimizzate", len(risultato))
 
         if risultato:
@@ -361,7 +351,7 @@ try:
             st.table(df_res.head(40))
             st.download_button("💾 Esporta per Stampa (CSV)", df_res.to_csv(index=False).encode('utf-8'), "morsa_v23_sincro.csv", "text/csv")
         else:
-            st.error("Nessun incastro trovato. Modifica l'ampiezza dello slider o cambia fisse per ricentrare la media target della macro-fascia.")
+            st.error("Nessun incastro trovato. Modifica l'ampiezza dello slider della potenza o seleziona una macro-fascia Wyckoff più armonica con il profilo scelto.")
 
 except Exception as e:
     st.error(f"Errore generale: {e}")
