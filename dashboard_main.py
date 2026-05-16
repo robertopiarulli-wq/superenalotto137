@@ -28,19 +28,42 @@ def analizza_dati_freschi():
     df['H'] = df.apply(lambda r: calcola_rugosita([r.n1, r.n2, r.n3, r.n4, r.n5, r.n6]), axis=1)
     
     cols = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6']
-    blacklist = set(df.head(3)[cols].values.flatten())
     
-    ritardi = {}
+    # ----------------------------------------------------------------------
+    # NUOVO MOTORE DI SCREMATURA INIZIALE V23 (137 ESTRAZIONI)
+    # ----------------------------------------------------------------------
+    # FILTRO 1: Esclusione chirurgica dei soli 6 numeri dell'ultima estrazione
+    blacklist_filtro1 = set(df.iloc[0][cols].values.flatten())
+    
+    # Segmentazione dello storico fisso a 137 estrazioni per i Filtri 2 e 3
+    df_137 = df.head(137)
+    tutti_i_numeri_137 = df_137[cols].values.flatten()
+    
+    # FILTRO 2: Individuazione dei 14 numeri MENO FREQUENTI nelle ultime 137
+    conteggio_frequenze = pd.Series(tutti_i_numeri_137).value_counts()
+    for n in range(1, 91):
+        if n not in conteggio_frequenze: 
+            conteggio_frequenze[n] = 0
+    meno_frequenti = set(conteggio_frequenze.nsmallest(14).index)
+    
+    # FILTRO 3: Individuazione dei 14 numeri PIÙ RITARDATARI nelle ultime 137
+    ritardi_137 = {}
     for n in range(1, 91):
         found = False
-        for i, row in enumerate(df[cols].values):
+        for i, row in enumerate(df_137[cols].values):
             if n in row:
-                ritardi[n] = i
+                ritardi_137[n] = i
                 found = True
                 break
-        if not found: ritardi[n] = len(df)
+        if not found: 
+            ritardi_137[n] = 137
+    piu_ritardatari = set(pd.Series(ritardi_137).nlargest(14).index)
     
-    return df, blacklist, ritardi
+    # Unione matematica delle tre barriere di pulizia
+    blacklist = blacklist_filtro1.union(meno_frequenti).union(piu_ritardatari)
+    # ----------------------------------------------------------------------
+    
+    return df, blacklist, ritardi_137, blacklist_filtro1, meno_frequenti, piu_ritardatari
 
 def carica_report_motori():
     scienza = {"pool_eletto": [], "nuclei_accelerati": [], "cluster_attivo": None}
@@ -63,7 +86,7 @@ def carica_report_motori():
             
     return scienza, valli, sature, antidoto_attivo
 
-# --- MODULO RADAR ANOMALIE V22 (FILTRI GEOMETRICI SELETTIVI) ---
+# --- MODULO RADAR ANOMALIE V23 (FILTRI GEOMETRICI SELETTIVI) ---
 def motore_radar_anomalie(df):
     blocchi_A = list(range(1, 16)) + list(range(31, 46)) + list(range(61, 76))
     blocchi_B = list(range(16, 31)) + list(range(46, 61)) + list(range(76, 91))
@@ -114,34 +137,57 @@ def riduttore_garantito(sestine, garanzia=4):
     return ridotte
 
 # --- UI ---
-st.set_page_config(page_title="Morsa V22 - Target Sincro", layout="wide")
+st.set_page_config(page_title="Morsa V23 - Macro Fasce & Triplo Filtro", layout="wide")
 
 try:
-    df_full, blacklist, mappa_ritardi = analizza_dati_freschi()
+    df_full, blacklist, mappa_ritardi, f1_last, f2_freq, f3_rit = analizza_dati_freschi()
     scienza, valli, sature, antidoto_attivo = carica_report_motori()
 
-    st.title("🚀 Morsa Scientifica V22: Sincronizzazione Totale & Incastri Geometrici")
+    st.title("🚀 Morsa Scientifica V23: Macro-Fasce Wyckoff & Riduzione Pre-Combinatoria")
 
-    # 1. RADAR ANOMALIE & MONITORAGGIO FREQUENZE
-    st.subheader("📡 Radar Casi Rari, Frequenze e Tensione Elastica")
+    # SPECCHIETTO DETTAGLIATO DEI NUOVI FILTRI IN TOP PAGE
+    with st.expander("🔍 Dettaglio Scrematura Quantitativa V23 (Attiva sulle ultime 137 estrazioni)"):
+        c_f1, c_f2, c_f3 = st.columns(3)
+        with c_f1:
+            st.error(f"Filtro 1: Ultima Estrazione ({len(f1_last)} num)")
+            st.code(f"{sorted(list(f1_last))}")
+        with c_f2:
+            st.warning(f"Filtro 2: 14 Meno Frequenti ({len(f2_freq)} num)")
+            st.code(f"{sorted(list(f2_freq))}")
+        with c_f3:
+            st.info(f"Filtro 3: 14 Più Ritardatari ({len(f3_rit)} num)")
+            st.code(f"{sorted(list(f3_rit))}")
+        st.success(f"Massa Critica Blacklist Totale (incluse sovrapposizioni): {len(blacklist)} numeri eliminati alla partenza.")
+
+    # 1. RADAR ANOMALIE & MONITORAGGIO MACRO-FASCE WYCKOFF
+    st.subheader("📡 Radar Casi Rari & Selettore Macro-Fasce Wyckoff")
     df_radar = motore_radar_anomalie(df_full)
     
     col_radar, col_valle = st.columns([2, 1])
     with col_radar:
         st.dataframe(df_radar, hide_index=True)
     with col_valle:
-        # LOGICA DI SINCRONIZZAZIONE CON L'ANTIDOTO DEL MOTORE DI PRESSIONE
-        if valli and not antidoto_attivo:
-            valle_target = min(valli, key=lambda x: abs(x[0] - 180))
-            st.success(f"🎯 **Wyckoff Valle Attiva**: {valle_target[0]} - {valle_target[1]}")
+        # NUOVA STRUTTURA A 3 MACRO-FASCE DOMINANTI DI GIOCO
+        st.write("**Seleziona la Macro-Fascia Propizia per Stasera:**")
+        scelta_macro = st.radio(
+            "Target Wyckoff Compresso:",
+            ["BANCO (Somme Basse / Compressione): [115, 170]", 
+             "CUORE (Somme Medie / Equilibrio): (170, 215]", 
+             "TETTO (Somme Alte / Espansione & Antidoto): (215, 270]"]
+        )
+        
+        if "BANCO" in scelta_macro:
+            valle_target = (115, 170)
+        elif "CUORE" in scelta_macro:
+            valle_target = (170, 215)
         else:
-            st.warning("⚠️ Valli Medie SATURE rilevate dal Motore 1. Attivazione Antidoto: BILANCIARE CON ALTI.")
-            valle_target = (220, 245)
-            st.info(f"🎯 **Nuovo Target Sincronizzato Fuori Saturazione**: {valle_target[0]} - {valle_target[1]}")
+            valle_target = (215, 270)
+            
+        st.success(f"🎯 **Target Sincronizzato Attivo**: {valle_target[0]} - {valle_target[1]}")
 
     # 2. SINCRONIZZAZIONE POOL NOBILTÀ & INTEGRAZIONE NUCLEI ACCELERATI
     st.divider()
-    st.subheader("🗂️ Gestione Pool Superstiti & Nuclei di Risonanza")
+    st.subheader("🗂 Honor Roll: Pool Superstiti & Nuclei di Risonanza")
     
     if scienza["nuclei_accelerati"]:
         st.write("🔥 **Nuclei Accelerati Attivi (Risonanza)**:")
@@ -189,7 +235,7 @@ try:
 
     cardini = st.sidebar.multiselect("Cardini Attivi (Fisse)", range(1, 91), default=fisse_auto if fisse_auto else (pool_sincro[:2] if pool_sincro else []))
     ampiezza_pool = st.sidebar.slider("Potenza di Espansione Popolo (Slider)", 15, 45, 25)
-    tipo_riduzione = st.sidebar.selectbox("Filtro Riduttore Optimizzato", ["Nessuna", "Garanzia 4", "Garanzia 5"])
+    tipo_riduzione = st.sidebar.selectbox("Filtro Riduttore Ottimizzato", ["Nessuna", "Garanzia 4", "Garanzia 5"])
 
     # Metriche generali
     target_h = df_full['H'].iloc[0:136].mean() * 0.98
@@ -197,7 +243,7 @@ try:
     m1, m2, m3 = st.columns(3)
     m1.metric("Bersaglio Rugosità H (Parisi)", f"{target_h:.5f}")
     m2.metric("Cluster Attivo", scienza.get("cluster_attivo", "Non rilevato"))
-    m3.metric("Filtro Blacklist (Memoria 3)", f"{len(blacklist)} num")
+    m3.metric("Filtro Totale Blacklist (V23)", f"{len(blacklist)} num")
 
     # PRE-CALCOLO PREVENTIVO DEI CANDIDATI SUPERSTITI
     somma_fisse = sum(cardini)
@@ -220,11 +266,11 @@ try:
 
     # 4. EVIDENZIAZIONE DEI CANDIDATI SUPERSTITI REALI
     st.subheader("🕵️ Analisi Preventiva dei Candidati Superstiti")
-    st.info(f"Prima della generazione, la morsa ha selezionato un set ristretto di **{len(pool_f)} numeri candidati** compatibili con i criteri attuali.")
+    st.info(f"Prima della generazione, la morsa ha selezionato un set ristretto di **{len(pool_f)} numeri candidati** compatibili con i criteri attuali e depurati dai 3 nuovi filtri.")
     st.code(f"Numeri pronti al calcolo combinatorio: {pool_f}")
 
-    # 5. MOTORE COMBINATORIO E GENERAZIONE (STRUTTURA CORRETTA)
-    if st.button("🚀 GENERA ARROSTO SINCRONIZZATO V22"):
+    # 5. MOTORE COMBINATORIO E GENERAZIONE V23
+    if st.button("🚀 GENERA ARROSTO SINCRONIZZATO V23"):
         sestine_nobili = []
         combs = list(itertools.combinations(pool_f, 6))
         prog = st.progress(0)
@@ -234,10 +280,10 @@ try:
             if all(f in s for f in cardini):
                 somma_s = sum(s)
                 
-                # Controllo Target di Somma Sincronizzato (220-245)
-                if (valle_target[0] - 5 < somma_s <= valle_target[1] + 5):
+                # Controllo Target di Somma Sincronizzato sulla Macro-Fascia Scelta
+                if (valle_target[0] <= somma_s <= valle_target[1]):
                     
-                    # Escludiamo le valli sature inferiori lasciando via libera all'antidoto alto
+                    # Esclusione delle sole valli sature inferiori a 220 per non bloccare l'azione sul Tetto
                     check_saturazione = any(sf[0] < somma_s <= sf[1] for sf in sature if sf[0] < 220)
                     
                     if not check_saturazione:
@@ -251,14 +297,15 @@ try:
 
         risultato = riduttore_garantito(sestine_nobili, 5 if "5" in tipo_riduzione else 4) if tipo_riduzione != "Nessuna" else sestine_nobili
 
-        st.subheader("📄 Report Strategico di Selezione (V22)")
+        st.subheader("📄 Report Strategico di Selezione (V23)")
         cr1, cr2 = st.columns(2)
         with cr1:
             st.markdown(f"""
-            **Configurazione Algoritmica:**
+            **Configurazione Algoritmica V23:**
             * **Filtro Sincro Geometrico**: {filtro_sincro}
             * **Cardini Bloccati (Fisse)**: {cardini}
-            * **Somma di Riferimento Wyckoff**: {valle_target[0]}-{valle_target[1]}
+            * **Macro-Fascia Selezionata**: {scelta_macro.split(':')[0]}
+            * **Intervallo di Somma Effettivo**: {valle_target[0]}-{valle_target[1]}
             * **Media Richiesta per Incastro**: {int(media_target)}
             """)
         with cr2:
@@ -268,9 +315,9 @@ try:
         if risultato:
             df_res = pd.DataFrame(risultato, columns=['N1','N2','N3','N4','N5','N6'])
             st.table(df_res.head(40))
-            st.download_button("💾 Esporta per Stampa (CSV)", df_res.to_csv(index=False).encode('utf-8'), "morsa_v22_sincro.csv", "text/csv")
+            st.download_button("💾 Esporta per Stampa (CSV)", df_res.to_csv(index=False).encode('utf-8'), "morsa_v23_sincro.csv", "text/csv")
         else:
-            st.error("Nessun incastro trovato. Modifica l'ampiezza dello slider o cambia fisse per ricentrare la media target.")
+            st.error("Nessun incastro trovato. Modifica l'ampiezza dello slider o cambia fisse per ricentrare la media target della macro-fascia.")
 
 except Exception as e:
     st.error(f"Errore generale: {e}")
