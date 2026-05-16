@@ -30,23 +30,30 @@ def analizza_dati_freschi():
     cols = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6']
     
     # ----------------------------------------------------------------------
-    # MOTOR DI SCREMATURA INIZIALE V23 (137 ESTRAZIONI)
+    # MOTORE DI SCREMATURA GERARCHICO E CORRETTO V23.2
     # ----------------------------------------------------------------------
-    # FILTRO 1: Esclusione chirurgica dei soli 6 numeri dell'ultima estrazione
+    # STEP 1: FILTRO 1 - Esclusione immediata e assoluta dei 6 numeri dell'ultima estrazione
     blacklist_filtro1 = set(df.iloc[0][cols].values.flatten())
     
-    # Segmentazione dello storico fisso a 137 estrazioni per i Filtri 2 e 3
+    # Prendiamo lo storico delle ultime 137 estrazioni
     df_137 = df.head(137)
     tutti_i_numeri_137 = df_137[cols].values.flatten()
     
-    # FILTRO 2: Individuazione dei 14 numeri MENO FREQUENTI nelle ultime 137
+    # STEP 2: FILTRO 2 - Calcolo frequenze escludendo PRIMA i numeri del Filtro 1
     conteggio_frequenze = pd.Series(tutti_i_numeri_137).value_counts()
     for n in range(1, 91):
         if n not in conteggio_frequenze: 
             conteggio_frequenze[n] = 0
+            
+    # Rimuoviamo i numeri del filtro 1 prima di prendere i 14 peggiori
+    for n in blacklist_filtro1:
+        if n in conteggio_frequenze:
+            conteggio_frequenze.drop(n, inplace=True)
+            
+    # Prendiamo i 14 numeri meno frequenti tra quelli rimasti
     meno_frequenti = set(conteggio_frequenze.nsmallest(14).index)
     
-    # FILTRO 3: Individuazione dei 14 numeri PIÙ RITARDATARI nelle ultime 137
+    # STEP 3: FILTRO 3 - Calcolo ritardi escludendo PRIMA i numeri del Filtro 1
     ritardi_137 = {}
     for n in range(1, 91):
         found = False
@@ -57,9 +64,17 @@ def analizza_dati_freschi():
                 break
         if not found: 
             ritardi_137[n] = 137
-    piu_ritardatari = set(pd.Series(ritardi_137).nlargest(14).index)
+            
+    # Trasformiamo in Serie per rimuovere in sicurezza i numeri del filtro 1
+    serie_ritardi = pd.Series(ritardi_137)
+    for n in blacklist_filtro1:
+        if n in serie_ritardi:
+            serie_ritardi.drop(n, inplace=True)
+            
+    # Prendiamo i 14 più ritardatari tra quelli rimasti
+    piu_ritardatari = set(serie_ritardi.nlargest(14).index)
     
-    # Unione matematica delle tre barriere di pulizia quantitative
+    # Unione finale blindata gerarchicamente: nessuna sovrapposizione parassita
     blacklist = blacklist_filtro1.union(meno_frequenti).union(piu_ritardatari)
     # ----------------------------------------------------------------------
     
@@ -86,23 +101,19 @@ def carica_report_motori():
             
     return scienza, valli, sature, antidoto_attivo
 
-# Funzione statistica interna per calcolare ritardi e frequenze correnti delle macro-fasce nelle ultime 137 estrazioni
 def calcola_statistiche_macro_fasce(df_137):
     risultati = {"BANCO": {"freq": 0, "rit": 0}, "CUORE": {"freq": 0, "rit": 0}, "TETTO": {"freq": 0, "rit": 0}}
     
-    # Calcolo frequenze totali nel blocco
     for _, row in df_137.iterrows():
         somma = row.n1 + row.n2 + row.n3 + row.n4 + row.n5 + row.n6
         if 115 <= somma <= 170: risultati["BANCO"]["freq"] += 1
         elif 170 < somma <= 215: risultati["CUORE"]["freq"] += 1
         elif 215 < somma <= 270: risultati["TETTO"]["freq"] += 1
         
-    # Calcolo ritardi attuali
     for chiave, limiti in [("BANCO", (115, 170)), ("CUORE", (170, 215)), ("TETTO", (215, 270))]:
         rit = 0
         for _, row in df_137.iterrows():
             somma = row.n1 + row.n2 + row.n3 + row.n4 + row.n5 + row.n6
-            # Gestione inclusiva corretta dei limiti di fascia
             condizione = (limiti[0] <= somma <= limiti[1]) if chiave == "BANCO" else (limiti[0] < somma <= limiti[1])
             if condizione:
                 break
@@ -161,31 +172,31 @@ def riduttore_garantito(sestine, garanzia=4):
         lista_sestine = [s for s in lista_sestine if len(set(s) & set(base)) < garanzia]
     return ridotte
 
-# --- UI INTERFACCIA COMPLETA ---
-st.set_page_config(page_title="Morsa V23.1 - Monitor Antidoto", layout="wide")
+# --- UI INTERFACCIA ---
+st.set_page_config(page_title="Morsa V23.2 - Correzione Falla", layout="wide")
 
 try:
     df_full, blacklist, mappa_ritardi, f1_last, f2_freq, f3_rit = analizza_dati_freschi()
     scienza, valli, sature, antidoto_attivo = carica_report_motori()
     stats_macro = calcola_statistiche_macro_fasce(df_full.head(137))
 
-    st.title("🚀 Morsa Scientifica V23.1: Macro-Fasce Wyckoff & Riduzione Pre-Combinatoria")
+    st.title("🚀 Morsa Scientifica V23.2: Macro-Fasce Wyckoff & Riduzione Pre-Combinatoria")
 
-    # SPECCHIETTO DETTAGLIATO DEI FILTRI IN TOP PAGE
-    with st.expander("🔍 Dettaglio Scrematura Quantitativa V23 (Attiva sulle ultime 137 estrazioni)"):
+    # SPECCHIETTO DETTAGLIATO DEI FILTRI IN TOP PAGE (CON GERARCHIA CORRETTA)
+    with st.expander("🔍 Dettaglio Scrematura Quantitativa V23.2 (Anticipazione Filtro 1 Garantita)"):
         c_f1, c_f2, c_f3 = st.columns(3)
         with c_f1:
-            st.error(f"Filtro 1: Ultima Estrazione ({len(f1_last)} num)")
+            st.error(f"Filtro 1: Ultima Estrazione ({len(f1_last)} num - PRIORITARIO)")
             st.code(f"{sorted(list(f1_last))}")
         with c_f2:
-            st.warning(f"Filtro 2: 14 Meno Frequenti ({len(f2_freq)} num)")
+            st.warning(f"Filtro 2: 14 Meno Frequenti ({len(f2_freq)} num - Esclusi i num del Filtro 1)")
             st.code(f"{sorted(list(f2_freq))}")
         with c_f3:
-            st.info(f"Filtro 3: 14 Più Ritardatari ({len(f3_rit)} num)")
+            st.info(f"Filtro 3: 14 Più Ritardatari ({len(f3_rit)} num - Esclusi i num del Filtro 1)")
             st.code(f"{sorted(list(f3_rit))}")
-        st.success(f"Massa Critica Blacklist Totale (incluse sovrapposizioni): {len(blacklist)} numeri eliminati alla partenza.")
+        st.success(f"Massa Critica Blacklist Totale Effettiva: {len(blacklist)} numeri eliminati alla partenza.")
 
-    # RIPRISTINO INDICATORE AUTOMATICO DELL'ANTIDOTO IN CASO DI SATURAZIONE DELLE VALLI MEDIE
+    # INDICATORE DELL'ANTIDOTO
     if antidoto_attivo == 'BILANCIARE_CON_ALTI':
         st.error("🚨 ALERT PRESSIONE SATURE: Il Motore 1 consiglia l'Antidoto attivo -> BILANCIARE_CON_ALTI. Si consiglia di forzare il gioco sulla fascia TETTO.")
     else:
@@ -199,7 +210,6 @@ try:
     with col_radar:
         st.dataframe(df_radar, hide_index=True)
     with col_valle:
-        # TABELLA LIVE CON VALORI DI RITARDO E FREQUENZA DELLE 3 FASCE SULLE ULTIME 137 ESTRAZIONI
         st.write("**📊 Metriche Live delle Macro-Fasce (Ultime 137 estrazioni):**")
         df_stats_print = pd.DataFrame([
             {"Macro-Fascia": "BANCO [115, 170]", "Frequenza (Uscite)": stats_macro["BANCO"]["freq"], "Ritardo Attuale": stats_macro["BANCO"]["rit"]},
@@ -277,13 +287,12 @@ try:
     ampiezza_pool = st.sidebar.slider("Potenza di Espansione Popolo (Slider)", 15, 45, 25)
     tipo_riduzione = st.sidebar.selectbox("Filtro Riduttore Ottimizzato", ["Nessuna", "Garanzia 4", "Garanzia 5"])
 
-    # Metriche generali di configurazione
     target_h = df_full['H'].iloc[0:136].mean() * 0.98
     st.divider()
     m1, m2, m3 = st.columns(3)
     m1.metric("Bersaglio Rugosità H (Parisi)", f"{target_h:.5f}")
     m2.metric("Cluster Attivo", scienza.get("cluster_attivo", "Non rilevato"))
-    m3.metric("Filtro Totale Blacklist (V23)", f"{len(blacklist)} num")
+    m3.metric("Filtro Totale Blacklist (V23.2)", f"{len(blacklist)} num")
 
     # PRE-CALCOLO PREVENTIVO DEI CANDIDATI SUPERSTITI
     somma_fisse = sum(cardini)
@@ -292,7 +301,6 @@ try:
     
     tutti_i_numeri = [n for n in range(1, 91) if n not in blacklist and n not in cardini]
     
-    # Applica i vincoli geometrici scelti anche al popolo di compensazione dello slider
     if "Under 45" in filtro_sincro: tutti_i_numeri = [n for n in tutti_i_numeri if n <= 45]
     elif "Over 45" in filtro_sincro: tutti_i_numeri = [n for n in tutti_i_numeri if n >= 46]
     elif "Media" in filtro_sincro: tutti_i_numeri = [n for n in tutti_i_numeri if 20 <= n <= 70]
@@ -306,10 +314,10 @@ try:
 
     # 4. EVIDENZIAZIONE DEI CANDIDATI SUPERSTITI REALI
     st.subheader("🕵️ Analisi Preventiva dei Candidati Superstiti")
-    st.info(f"Prima della generazione, la morsa ha selezionato un set ristretto di **{len(pool_f)} numeri candidati** compatibili con i criteri attuali e depurati dai 3 nuovi filtri.")
+    st.info(f"Prima della generazione, la morsa ha selezionato un set ristretto di **{len(pool_f)} numeri candidati** compatibili con i criteri attuels e depurati senza sovrapposizioni.")
     st.code(f"Numeri pronti al calcolo combinatorio: {pool_f}")
 
-    # 5. MOTORE COMBINATORIO E GENERAZIONE V23.1
+    # 5. MOTORE COMBINATORIO E GENERAZIONE V23.2
     if st.button("🚀 GENERA ARROSTO SINCRONIZZATO V23"):
         sestine_nobili = []
         combs = list(itertools.combinations(pool_f, 6))
@@ -320,14 +328,10 @@ try:
             if all(f in s for f in cardini):
                 somma_s = sum(s)
                 
-                # Controllo Target di Somma Sincronizzato sulla Macro-Fascia Scelta
                 if (valle_target[0] <= somma_s <= valle_target[1]):
-                    
-                    # Esclusione delle sole valli sature inferiori a 220 per lasciare via libera all'antidoto alto (Tetto)
                     check_saturazione = any(sf[0] < somma_s <= sf[1] for sf in sature if sf[0] < 220)
                     
                     if not check_saturazione:
-                        # Controllo Rugosità H
                         if abs(calcola_rugosita(s) - target_h) < (target_h * 0.15):
                             sestine_nobili.append(s)
                             
@@ -337,11 +341,11 @@ try:
 
         risultato = riduttore_garantito(sestine_nobili, 5 if "5" in tipo_riduzione else 4) if tipo_riduzione != "Nessuna" else sestine_nobili
 
-        st.subheader("📄 Report Strategico di Selezione (V23.1)")
+        st.subheader("📄 Report Strategico di Selezione (V23.2)")
         cr1, cr2 = st.columns(2)
         with cr1:
             st.markdown(f"""
-            **Configurazione Algoritmica V23.1:**
+            **Configurazione Algoritmica V23.2:**
             * **Filtro Sincro Geometrico**: {filtro_sincro}
             * **Cardini Bloccati (Fisse)**: {cardini}
             * **Macro-Fascia Selezionata**: {scelta_macro.split(':')[0]}
@@ -360,4 +364,4 @@ try:
             st.error("Nessun incastro trovato. Modifica l'ampiezza dello slider o cambia fisse per ricentrare la media target della macro-fascia.")
 
 except Exception as e:
-    st.error(f"Errore generale nel caricamento o nell'esecuzione: {e}")
+    st.error(f"Errore generale: {e}")
