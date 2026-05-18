@@ -30,27 +30,37 @@ def analizza_dati_freschi():
     cols = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6']
     
     # ----------------------------------------------------------------------
-    # MOTORE DI SCREMATURA GERARCHICO E CORRETTO V23.2
+    # MOTORE DI SCREMATURA GERARCHICO QUANTITATIVO V24.0 (ALPHA)
     # ----------------------------------------------------------------------
     # STEP 1: FILTRO 1 - Esclusione immediata e assoluta dei 6 numeri dell'ultima estrazione
     blacklist_filtro1 = set(df.iloc[0][cols].values.flatten())
     
     # Prendiamo lo storico delle ultime 137 estrazioni
-    df_137 = df.head(137)
-    tutti_i_numeri_137 = df_137[cols].values.flatten()
+    df_137 = df.head(137).copy()
     
-    # STEP 2: FILTRO 2 - Calcolo frequenze escludendo PRIMA i numeri del Filtro 1
-    conteggio_frequenze = pd.Series(tutti_i_numeri_137).value_counts()
-    for n in range(1, 91):
-        if n not in conteggio_frequenze: 
-            conteggio_frequenze[n] = 0
+    # --- INIEZIONE OPTIMIZATION STEP 1: DECADIMENTO ESPONENZIALE ---
+    # Generazione del vettore dei pesi temporali (Indice 0 = 1.0, Indice 136 -> vicino a 0)
+    pesi_temporali = np.exp(-np.linspace(0, 3.5, len(df_137)))
+    
+    # Inizializzazione del dizionario dell'energia cinetica dei numeri
+    energia_numeri = {n: 0.0 for n in range(1, 91)}
+    
+    # Calcolo della frequenza ponderata in base alla profondità temporale
+    for idx, row in enumerate(df_137[cols].values):
+        peso_corrente = pesi_temporali[idx]
+        for num in row:
+            if num in energia_numeri:
+                energia_numeri[num] += peso_corrente
+
+    # Trasformazione in Serie per applicare la gerarchia di esclusione
+    conteggio_frequenze = pd.Series(energia_numeri)
             
-    # Rimuoviamo i numeri del filtro 1 prima di prendere i 14 peggiori
+    # Rimuoviamo i numeri del filtro 1 prima di estrarre i 14 elementi a più bassa energia
     for n in blacklist_filtro1:
         if n in conteggio_frequenze:
             conteggio_frequenze.drop(n, inplace=True)
             
-    # Prendiamo i 14 numeri meno frequenti tra quelli rimasti
+    # Isoliamo i 14 numeri meno energetici del presente (Veri Freddi Sincronizzati)
     meno_frequenti = set(conteggio_frequenze.nsmallest(14).index)
     
     # STEP 3: FILTRO 3 - Calcolo ritardi escludendo PRIMA i numeri del Filtro 1
@@ -65,7 +75,7 @@ def analizza_dati_freschi():
         if not found: 
             ritardi_137[n] = 137
             
-    # Trasformiamo in Serie per rimuovere in sicurezza i numeri del filtro 1
+    # Trasformiamo in Serie per pulizia gerarchica controllata
     serie_ritardi = pd.Series(ritardi_137)
     for n in blacklist_filtro1:
         if n in serie_ritardi:
@@ -74,7 +84,7 @@ def analizza_dati_freschi():
     # Prendiamo i 14 più ritardatari tra quelli rimasti
     piu_ritardatari = set(serie_ritardi.nlargest(14).index)
     
-    # Unione finale blindata gerarchicamente: nessuna sovrapposizione parassita
+    # Unione finale della massa critica di Blacklist (Nessuna sovrapposizione parassita)
     blacklist = blacklist_filtro1.union(meno_frequenti).union(piu_ritardatari)
     # ----------------------------------------------------------------------
     
@@ -122,7 +132,7 @@ def calcola_statistiche_macro_fasce(df_137):
         
     return risultati
 
-# MAPPA DELLE GEOMETRIE COMPLESSE PER IL RADAR E LA VALVOLA DI CODA
+# CONFIGURAZIONE STRUTTURE GEOMETRICHE RADAR E VALVOLA DI CODA
 blocchi_A = list(range(1, 16)) + list(range(31, 46)) + list(range(61, 76))
 blocchi_B = list(range(16, 31)) + list(range(46, 61)) + list(range(76, 91))
 blocchi_C = list(range(1, 16)) + list(range(46, 76))
@@ -140,7 +150,6 @@ def test_geometria_valvola(profilo, sestina):
     if profilo == "Solo Alternata D": return all(n in blocchi_D for n in sestina)
     return True
 
-# --- MODULO RADAR ANOMALIE V23 ---
 def motore_radar_anomalie(df):
     profili = {
         "Fascia Under 45": lambda s: all(n <= 45 for n in s),
@@ -186,34 +195,32 @@ def riduttore_garantito(sestine, garanzia=4):
     return ridotte
 
 # --- UI INTERFACCIA ---
-st.set_page_config(page_title="Morsa V23.3 - Valvola Energetica", layout="wide")
+st.set_page_config(page_title="Morsa V24.0 Alpha - Exponential Decay", layout="wide")
 
 try:
     df_full, blacklist, mappa_ritardi, f1_last, f2_freq, f3_rit = analizza_dati_freschi()
     scienza, valli, sature, antidoto_attivo = carica_report_motori()
     stats_macro = calcola_statistiche_macro_fasce(df_full.head(137))
 
-    st.title("🚀 Morsa Scientifica V23.3: Valvola Selettiva Post-Combinatoria")
+    st.title("🚀 Morsa Predittiva V24.0 (Alpha): Filtro di Decadimento Esponenziale")
 
-    # SPECCHIETTO DETTAGLIATO DEI FILTRI IN TOP PAGE
-    with st.expander("🔍 Dettaglio Scrematura Quantitativa V23.2 (Anticipazione Filtro 1 Garantita)"):
+    with st.expander("🔍 Dettaglio Scrematura Quantitativa V24.0 (Frequenze Ponderate)"):
         c_f1, c_f2, c_f3 = st.columns(3)
         with c_f1:
             st.error(f"Filtro 1: Ultima Estrazione ({len(f1_last)} num - PRIORITARIO)")
             st.code(f"{sorted(list(f1_last))}")
         with c_f2:
-            st.warning(f"Filtro 2: 14 Meno Frequenti ({len(f2_freq)} num - Esclusi i num del Filtro 1)")
+            st.warning(f"Filtro 2: 14 Meno Energetici ({len(f2_freq)} num - Decadimento Esponenziale)")
             st.code(f"{sorted(list(f2_freq))}")
         with c_f3:
             st.info(f"Filtro 3: 14 Più Ritardatari ({len(f3_rit)} num - Esclusi i num del Filtro 1)")
             st.code(f"{sorted(list(f3_rit))}")
         st.success(f"Massa Critica Blacklist Totale Effettiva: {len(blacklist)} numeri eliminati alla partenza.")
 
-    # INDICATORE DELL'ANTIDOTO
     if antidoto_attivo == 'BILANCIARE_CON_ALTI':
-        st.error("🚨 ALERT PRESSIONE SATURE: Il Motore 1 consiglia l'Antidoto attivo -> BILANCIARE_CON_ALTI. Si consiglia di forzare il gioco sulla fascia TETTO.")
+        st.error("🚨 ALERT PRESSIONE SATURE: Antidoto consigliato -> BILANCIARE_CON_ALTI (Forzare su fascia TETTO).")
     else:
-        st.info("ℹ️ Stato Pressione: Nessun Antidoto forzato rilevato nel report valli di pressione.")
+        st.info("ℹ️ Stato Pressione: Nessun Antidoto forzato rilevato nel report.")
 
     # 1. RADAR ANOMALIE & MONITORAGGIO MACRO-FASCE WYCKOFF
     st.subheader("📡 Radar Casi Rari & Selettore Macro-Fasce Wyckoff")
@@ -238,17 +245,10 @@ try:
              "CUORE (Somme Medie / Equilibrio): (170, 215]", 
              "TETTO (Somme Alte / Espansione & Antidoto): (215, 270]"]
         )
-        
-        if "BANCO" in scelta_macro:
-            valle_target = (115, 170)
-        elif "CUORE" in scelta_macro:
-            valle_target = (170, 215)
-        else:
-            valle_target = (215, 270)
-            
+        valle_target = (115, 170) if "BANCO" in scelta_macro else (170, 215) if "CUORE" in scelta_macro else (215, 270)
         st.success(f"🎯 **Target Sincronizzato Attivo**: {valle_target[0]} - {valle_target[1]}")
 
-    # 2. SINCRONIZZAZIONE POOL NOBILTÀ & INTEGRAZIONE NUCLEI ACCELERATI
+    # 2. SINCRONIZZAZIONE POOL NOBILTÀ
     st.divider()
     st.subheader("🗂 Honor Roll: Pool Superstiti & Nuclei di Risonanza")
     
@@ -258,7 +258,6 @@ try:
         
     pool_residuo = [n for n in scienza["pool_eletto"] if n not in blacklist]
     
-    # MODIFICA V23.3: Diventa una valvola di scarico post-calcolo! I numeri rimangono liberi alla partenza.
     filtro_sincro = st.selectbox("🎯 APPLICA VALVOLA GEOMETRICA (Sincronizza il profilo Critico del Radar stasera):", 
                                 ["Nessuno", "Solo Under 45", "Solo Over 45", "Solo Pari", "Solo Dispari", 
                                  "Solo Media (20-70)", "Solo Alternata A", "Solo Alternata B", "Solo Alternata C", "Solo Alternata D"])
@@ -266,7 +265,7 @@ try:
     st.write("**Pool Superstiti Nobili Completi (Usa come fisse/cardini):**")
     st.code(f"{pool_residuo}")
 
-    # 3. SIDEBAR PARAMETRI CON INTEGRAZIONE COORDINATA DEI NUCLEI
+    # 3. SIDEBAR PARAMETRI DI GIOCO
     st.sidebar.header("🎯 Parametri di Gioco")
     
     opzioni_nuclei = ["Manuale"]
@@ -285,26 +284,23 @@ try:
     m1, m2, m3 = st.columns(3)
     m1.metric("Bersaglio Rugosità H (Parisi)", f"{target_h:.5f}")
     m2.metric("Cluster Attivo", scienza.get("cluster_attivo", "Non rilevato"))
-    m3.metric("Filtro Totale Blacklist (V23.2)", f"{len(blacklist)} num")
+    m3.metric("Filtro Totale Blacklist (V24.0)", f"{len(blacklist)} num")
 
-    # PRE-CALCOLO PREVENTIVO DEI CANDIDATI SUPERSTITI (COMPLETO E BILANCIATO PER LE SOMME)
+    # PRE-CALCOLO PREVENTIVO DEI CANDIDATI SUPERSTITI
     somma_fisse = sum(cardini)
     n_mancanti = 6 - len(cardini)
     media_target = (sum(valle_target)/2 - somma_fisse) / n_mancanti if n_mancanti > 0 else 0
     
     tutti_i_numeri = [n for n in range(1, 91) if n not in blacklist and n not in cardini]
     popolo = sorted(tutti_i_numeri, key=lambda x: abs(x - media_target))
-    
-    # Il pool finale si compone liberamente garantendo che l'algoritmo possa far incastrare la Somma Wyckoff
     pool_f = sorted(list(set(cardini + pool_residuo + popolo[:ampiezza_pool - len(pool_residuo)])))
 
-    # 4. EVIDENZIAZIONE DEI CANDIDATI SUPERSTITI REALI
     st.subheader("🕵️ Analisi Preventiva dei Candidati Superstiti")
     st.info(f"Prima della generazione, la morsa ha selezionato un set di **{len(pool_f)} numeri candidati** bilanciati per le medie Wyckoff.")
     st.code(f"Numeri pronti al calcolo combinatorio: {pool_f}")
 
-    # 5. MOTORE COMBINATORIO E GENERAZIONE V23.3 CON VALVOLA DI SCARICO
-    if st.button("🚀 GENERA ARROSTO SINCRONIZZATO V23"):
+    # 5. MOTORE COMBINATORIO E GENERAZIONE V24.0 CON VALVOLA DI CODA
+    if st.button("🚀 GENERA ARROSTO SINCRONIZZATO V24"):
         sestine_nobili = []
         combs = list(itertools.combinations(pool_f, 6))
         prog = st.progress(0)
@@ -314,30 +310,29 @@ try:
             if all(f in s for f in cardini):
                 somma_s = sum(s)
                 
-                # VINCOLO 1: LA STRUTTURA ENERGETICA WYCKOFF (LA SOMMA COMANDA)
                 if (valle_target[0] <= somma_s <= valle_target[1]):
                     check_saturazione = any(sf[0] < somma_s <= sf[1] for sf in sature if sf[0] < 220)
                     
                     if not check_saturazione:
-                        # VINCOLO 2: RUGOSITÀ H (PARISI)
                         if abs(calcola_rugosita(s) - target_h) < (target_h * 0.15):
                             
-                            # 🚨 SELEZIONE CHIRURGICA: Applica la Valvola Geometrica Post-Generazione!
+                            # Valvola geometrica post-calcolo attiva (V23.3/V24.0)
                             if test_geometria_valvola(filtro_sincro, s):
                                 sestine_nobili.append(s)
                             
-            if i > 2500000: break # Alzato a 2.5 Mln per dare respiro al calcolo e non strozzare le combinazioni
+            if i > 2500000: break
             if i % 50000 == 0: prog.progress(min((i+1)/len(combs) if len(combs)>0 else 1, 1.0))
         prog.empty()
 
         risultato = riduttore_garantito(sestine_nobili, 5 if "5" in tipo_riduzione else 4) if tipo_riduzione != "Nessuna" else sestine_nobili
 
-        st.subheader("📄 Report Strategico di Selezione (V23.3)")
+        st.subheader("📄 Report Strategico di Selezione (V24.0)")
         cr1, cr2 = st.columns(2)
         with cr1:
             st.markdown(f"""
-            **Configurazione Algoritmica V23.3:**
-            * **Valvola Geometrica Attiva (Post-Calcolo)**: {filtro_sincro}
+            **Configurazione Algoritmica V24.0 (Alpha):**
+            * **Valvola Geometrica Post-Calcolo**: {filtro_sincro}
+            * **Filtro 2 Frequenze**: Configurato su Decadimento Esponenziale 
             * **Cardini Bloccati (Fisse)**: {cardini}
             * **Macro-Fascia Selezionata**: {scelta_macro.split(':')[0]}
             * **Intervallo di Somma Effettivo**: {valle_target[0]}-{valle_target[1]}
@@ -349,9 +344,9 @@ try:
         if risultato:
             df_res = pd.DataFrame(risultato, columns=['N1','N2','N3','N4','N5','N6'])
             st.table(df_res.head(40))
-            st.download_button("💾 Esporta per Stampa (CSV)", df_res.to_csv(index=False).encode('utf-8'), "morsa_v23_sincro.csv", "text/csv")
+            st.download_button("💾 Esporta per Stampa (CSV)", df_res.to_csv(index=False).encode('utf-8'), "morsa_v24_alpha.csv", "text/csv")
         else:
-            st.error("Nessun incastro trovato. Modifica l'ampiezza dello slider della potenza o seleziona una macro-fascia Wyckoff più armonica con il profilo scelto.")
+            st.error("Nessun incastro trovato. Modifica l'ampiezza dello slider della potenza o seleziona una macro-fascia Wyckoff più armonica.")
 
 except Exception as e:
     st.error(f"Errore generale: {e}")
