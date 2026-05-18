@@ -30,7 +30,7 @@ def analizza_dati_freschi():
     cols = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6']
     
     # ----------------------------------------------------------------------
-    # MOTORE DI SCREMATURA GERARCHICO QUANTITATIVO V24.0 (ALPHA)
+    # MOTORE DI SCREMATURA GERARCHICO QUANTITATIVO V24.1 (BETA)
     # ----------------------------------------------------------------------
     # STEP 1: FILTRO 1 - Esclusione immediata e assoluta dei 6 numeri dell'ultima estrazione
     blacklist_filtro1 = set(df.iloc[0][cols].values.flatten())
@@ -38,32 +38,25 @@ def analizza_dati_freschi():
     # Prendiamo lo storico delle ultime 137 estrazioni
     df_137 = df.head(137).copy()
     
-    # --- INIEZIONE OPTIMIZATION STEP 1: DECADIMENTO ESPONENZIALE ---
-    # Generazione del vettore dei pesi temporali (Indice 0 = 1.0, Indice 136 -> vicino a 0)
+    # --- FILTRO 2: DECADIMENTO ESPONENZIALE MANTENUTO CON KH = 3.5 ---
     pesi_temporali = np.exp(-np.linspace(0, 3.5, len(df_137)))
-    
-    # Inizializzazione del dizionario dell'energia cinetica dei numeri
     energia_numeri = {n: 0.0 for n in range(1, 91)}
     
-    # Calcolo della frequenza ponderata in base alla profondità temporale
     for idx, row in enumerate(df_137[cols].values):
         peso_corrente = pesi_temporali[idx]
         for num in row:
             if num in energia_numeri:
                 energia_numeri[num] += peso_corrente
 
-    # Trasformazione in Serie per applicare la gerarchia di esclusione
     conteggio_frequenze = pd.Series(energia_numeri)
-            
-    # Rimuoviamo i numeri del filtro 1 prima di estrarre i 14 elementi a più bassa energia
     for n in blacklist_filtro1:
         if n in conteggio_frequenze:
             conteggio_frequenze.drop(n, inplace=True)
             
-    # Isoliamo i 14 numeri meno energetici del presente (Veri Freddi Sincronizzati)
     meno_frequenti = set(conteggio_frequenze.nsmallest(14).index)
     
-    # STEP 3: FILTRO 3 - Calcolo ritardi escludendo PRIMA i numeri del Filtro 1
+    # --- INIEZIONE OPTIMIZATION STEP 2: FINESTRA DEL RITARDO NATURALE ---
+    # Calcolo dei ritardi reali puri su base 137
     ritardi_137 = {}
     for n in range(1, 91):
         found = False
@@ -81,10 +74,26 @@ def analizza_dati_freschi():
         if n in serie_ritardi:
             serie_ritardi.drop(n, inplace=True)
             
-    # Prendiamo i 14 più ritardatari tra quelli rimasti
-    piu_ritardatari = set(serie_ritardi.nlargest(14).index)
+    # Costruiamo un algoritmo di "Punteggio di Tossicità del Ritardo"
+    # Obiettivo: Proteggere la fascia d'oro (15-26) e colpire duramente i ritardi fossili (>30)
+    punteggio_tossicita = {}
+    for num, rit in serie_ritardi.items():
+        if 15 <= rit <= 26:
+            # Finestra d'oro: assegniamo tossicità zero per preservarli dal taglio della blacklist
+            punteggio_tossicita[num] = -100 
+        elif rit > 30:
+            # Ritardi fossili accumulati cronici: tossicità altissima (vanno dritti in blacklist)
+            punteggio_tossicita[num] = rit * 2
+        else:
+            # Micro-ritardi standard ordinari
+            punteggio_tossicita[num] = rit
+
+    serie_tossicita = pd.Series(punteggio_tossicita)
     
-    # Unione finale della massa critica di Blacklist (Nessuna sovrapposizione parassita)
+    # Il Filtro 3 ora estrae i 14 numeri con il più alto indice di tossicità distruttiva
+    piu_ritardatari = set(serie_tossicita.nlargest(14).index)
+    
+    # Unione finale della massa critica di Blacklist (Gerarchia bilanciata senza buchi)
     blacklist = blacklist_filtro1.union(meno_frequenti).union(piu_ritardatari)
     # ----------------------------------------------------------------------
     
@@ -195,16 +204,16 @@ def riduttore_garantito(sestine, garanzia=4):
     return ridotte
 
 # --- UI INTERFACCIA ---
-st.set_page_config(page_title="Morsa V24.0 Alpha - Exponential Decay", layout="wide")
+st.set_page_config(page_title="Morsa V24.1 Beta - Golden Window Delay", layout="wide")
 
 try:
     df_full, blacklist, mappa_ritardi, f1_last, f2_freq, f3_rit = analizza_dati_freschi()
     scienza, valli, sature, antidoto_attivo = carica_report_motori()
     stats_macro = calcola_statistiche_macro_fasce(df_full.head(137))
 
-    st.title("🚀 Morsa Predittiva V24.0 (Alpha): Filtro di Decadimento Esponenziale")
+    st.title("🚀 Morsa Predittiva V24.1 (Beta): Protezione Fascia d'Oro Ritardi")
 
-    with st.expander("🔍 Dettaglio Scrematura Quantitativa V24.0 (Frequenze Ponderate)"):
+    with st.expander("🔍 Dettaglio Scrematura Quantitativa V24.1 (Ritardi Selettivi a Tossicità)"):
         c_f1, c_f2, c_f3 = st.columns(3)
         with c_f1:
             st.error(f"Filtro 1: Ultima Estrazione ({len(f1_last)} num - PRIORITARIO)")
@@ -213,7 +222,7 @@ try:
             st.warning(f"Filtro 2: 14 Meno Energetici ({len(f2_freq)} num - Decadimento Esponenziale)")
             st.code(f"{sorted(list(f2_freq))}")
         with c_f3:
-            st.info(f"Filtro 3: 14 Più Ritardatari ({len(f3_rit)} num - Esclusi i num del Filtro 1)")
+            st.info(f"Filtro 3: 14 a Massima Tossicità ({len(f3_rit)} num - Protetta la Finestra 15-26)")
             st.code(f"{sorted(list(f3_rit))}")
         st.success(f"Massa Critica Blacklist Totale Effettiva: {len(blacklist)} numeri eliminati alla partenza.")
 
@@ -284,7 +293,7 @@ try:
     m1, m2, m3 = st.columns(3)
     m1.metric("Bersaglio Rugosità H (Parisi)", f"{target_h:.5f}")
     m2.metric("Cluster Attivo", scienza.get("cluster_attivo", "Non rilevato"))
-    m3.metric("Filtro Totale Blacklist (V24.0)", f"{len(blacklist)} num")
+    m3.metric("Filtro Totale Blacklist (V24.1)", f"{len(blacklist)} num")
 
     # PRE-CALCOLO PREVENTIVO DEI CANDIDATI SUPERSTITI
     somma_fisse = sum(cardini)
@@ -299,7 +308,7 @@ try:
     st.info(f"Prima della generazione, la morsa ha selezionato un set di **{len(pool_f)} numeri candidati** bilanciati per le medie Wyckoff.")
     st.code(f"Numeri pronti al calcolo combinatorio: {pool_f}")
 
-    # 5. MOTORE COMBINATORIO E GENERAZIONE V24.0 CON VALVOLA DI CODA
+    # 5. MOTORE COMBINATORIO E GENERAZIONE V24.1 CON VALVOLA DI CODA
     if st.button("🚀 GENERA ARROSTO SINCRONIZZATO V24"):
         sestine_nobili = []
         combs = list(itertools.combinations(pool_f, 6))
@@ -316,7 +325,7 @@ try:
                     if not check_saturazione:
                         if abs(calcola_rugosita(s) - target_h) < (target_h * 0.15):
                             
-                            # Valvola geometrica post-calcolo attiva (V23.3/V24.0)
+                            # Valvola geometrica post-calcolo attiva
                             if test_geometria_valvola(filtro_sincro, s):
                                 sestine_nobili.append(s)
                             
@@ -326,13 +335,14 @@ try:
 
         risultato = riduttore_garantito(sestine_nobili, 5 if "5" in tipo_riduzione else 4) if tipo_riduzione != "Nessuna" else sestine_nobili
 
-        st.subheader("📄 Report Strategico di Selezione (V24.0)")
+        st.subheader("📄 Report Strategico di Selezione (V24.1)")
         cr1, cr2 = st.columns(2)
         with cr1:
             st.markdown(f"""
-            **Configurazione Algoritmica V24.0 (Alpha):**
+            **Configurazione Algoritmica V24.1 (Beta):**
             * **Valvola Geometrica Post-Calcolo**: {filtro_sincro}
             * **Filtro 2 Frequenze**: Configurato su Decadimento Esponenziale 
+            * **Filtro 3 Ritardi**: Finestra d'Oro (15-26) Protetta dal taglio
             * **Cardini Bloccati (Fisse)**: {cardini}
             * **Macro-Fascia Selezionata**: {scelta_macro.split(':')[0]}
             * **Intervallo di Somma Effettivo**: {valle_target[0]}-{valle_target[1]}
@@ -344,7 +354,7 @@ try:
         if risultato:
             df_res = pd.DataFrame(risultato, columns=['N1','N2','N3','N4','N5','N6'])
             st.table(df_res.head(40))
-            st.download_button("💾 Esporta per Stampa (CSV)", df_res.to_csv(index=False).encode('utf-8'), "morsa_v24_alpha.csv", "text/csv")
+            st.download_button("💾 Esporta per Stampa (CSV)", df_res.to_csv(index=False).encode('utf-8'), "morsa_v24_1_beta.csv", "text/csv")
         else:
             st.error("Nessun incastro trovato. Modifica l'ampiezza dello slider della potenza o seleziona una macro-fascia Wyckoff più armonica.")
 
