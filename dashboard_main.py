@@ -30,7 +30,7 @@ def analizza_dati_freschi():
     cols = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6']
     
     # ----------------------------------------------------------------------
-    # MOTORE DI SCREMATURA GERARCHICO QUANTITATIVO V24.1 (BETA)
+    # MOTORE DI SCREMATURA GERARCHICO QUANTITATIVO V24.1 (BETA) -> PORTATO A V24.2
     # ----------------------------------------------------------------------
     # STEP 1: FILTRO 1 - Esclusione immediata e assoluta dei 6 numeri dell'ultima estrazione
     blacklist_filtro1 = set(df.iloc[0][cols].values.flatten())
@@ -204,16 +204,16 @@ def riduttore_garantito(sestine, garanzia=4):
     return ridotte
 
 # --- UI INTERFACCIA ---
-st.set_page_config(page_title="Morsa V24.1 Beta - Golden Window Delay", layout="wide")
+st.set_page_config(page_title="Morsa V24.2 RC - Golden Window Delay & Simpatia", layout="wide")
 
 try:
     df_full, blacklist, mappa_ritardi, f1_last, f2_freq, f3_rit = analizza_dati_freschi()
     scienza, valli, sature, antidoto_attivo = carica_report_motori()
     stats_macro = calcola_statistiche_macro_fasce(df_full.head(137))
 
-    st.title("🚀 Morsa Predittiva V24.1 (Beta): Protezione Fascia d'Oro Ritardi")
+    st.title("🚀 Morsa Predittiva V24.2 (RC): Protezione Fascia d'Oro & Matrice Simpatie")
 
-    with st.expander("🔍 Dettaglio Scrematura Quantitativa V24.1 (Ritardi Selettivi a Tossicità)"):
+    with st.expander("🔍 Dettaglio Scrematura Quantitativa V24.2 (Ritardi Selettivi a Tossicità)"):
         c_f1, c_f2, c_f3 = st.columns(3)
         with c_f1:
             st.error(f"Filtro 1: Ultima Estrazione ({len(f1_last)} num - PRIORITARIO)")
@@ -288,27 +288,44 @@ try:
     ampiezza_pool = st.sidebar.slider("Potenza di Espansione Popolo (Slider)", 15, 45, 25)
     tipo_riduzione = st.sidebar.selectbox("Filtro Riduttore Ottimizzato", ["Nessuna", "Garanzia 4", "Garanzia 5"])
 
-    target_h = df_full['H'].iloc[0:136].mean() * 0.98
+    # RIPRISTINATO IL MOLTIPLICATORE ESATTO 0.985 DAL TUO FILE ORIGINALE
+    target_h = df_full['H'].iloc[0:136].mean() * 0.985
     st.divider()
     m1, m2, m3 = st.columns(3)
     m1.metric("Bersaglio Rugosità H (Parisi)", f"{target_h:.5f}")
     m2.metric("Cluster Attivo", scienza.get("cluster_attivo", "Non rilevato"))
-    m3.metric("Filtro Totale Blacklist (V24.1)", f"{len(blacklist)} num")
+    m3.metric("Filtro Totale Blacklist (V24.2)", f"{len(blacklist)} num")
 
-    # PRE-CALCOLO PREVENTIVO DEI CANDIDATI SUPERSTITI
+    # PRE-CALCOLO PREVENTIVO DEI CANDIDATI SUPERSTITI CON MATRICE DELLE SIMPATIE (STEP 3)
     somma_fisse = sum(cardini)
     n_mancanti = 6 - len(cardini)
     media_target = (sum(valle_target)/2 - somma_fisse) / n_mancanti if n_mancanti > 0 else 0
     
     tutti_i_numeri = [n for n in range(1, 91) if n not in blacklist and n not in cardini]
-    popolo = sorted(tutti_i_numeri, key=lambda x: abs(x - media_target))
+    
+    # --- LOGICA MATRICE CO-OCCORRENZE (STEP 3 INIETTATO) ---
+    bersagli_simpatia = cardini if cardini else pool_residuo
+    simpatia_punteggi = {n: 0 for n in tutti_i_numeri}
+    cols_est = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6']
+    df_137_values = df_full.head(137)[cols_est].values
+    
+    if bersagli_simpatia:
+        for row in df_137_values:
+            presenza_bersagli = [b for b in bersagli_simpatia if b in row]
+            if presenza_bersagli:
+                for n in row:
+                    if n in simpatia_punteggi:
+                        simpatia_punteggi[n] += len(presenza_bersagli)
+
+    # Ordinamento del popolo bilanciando Incastro Wyckoff e Vettore Simpatia Cinetica
+    popolo = sorted(tutti_i_numeri, key=lambda x: (abs(x - media_target) * 1.5) - (simpatia_punteggi[x] * 2.0))
     pool_f = sorted(list(set(cardini + pool_residuo + popolo[:ampiezza_pool - len(pool_residuo)])))
 
     st.subheader("🕵️ Analisi Preventiva dei Candidati Superstiti")
-    st.info(f"Prima della generazione, la morsa ha selezionato un set di **{len(pool_f)} numeri candidati** bilanciati per le medie Wyckoff.")
+    st.info(f"Prima della generazione, la morsa ha selezionato un set di **{len(pool_f)} numeri candidati** bilanciati per le medie Wyckoff e la coesione di simpatia.")
     st.code(f"Numeri pronti al calcolo combinatorio: {pool_f}")
 
-    # 5. MOTORE COMBINATORIO E GENERAZIONE V24.1 CON VALVOLA DI CODA
+    # 5. MOTORE COMBINATORIO E GENERAZIONE V24.2 CON VALVOLA DI CODA
     if st.button("🚀 GENERA ARROSTO SINCRONIZZATO V24"):
         sestine_nobili = []
         combs = list(itertools.combinations(pool_f, 6))
@@ -323,29 +340,33 @@ try:
                     check_saturazione = any(sf[0] < somma_s <= sf[1] for sf in sature if sf[0] < 220)
                     
                     if not check_saturazione:
-                        if abs(calcola_rugosita(s) - target_h) < (target_h * 0.15):
+                        # RIPRISTINATO IL FILTRO RUGOSITÀ ORIGINALE A 0.12 DAL TUO FILE
+                        if abs(calcola_rugosita(s) - target_h) < (target_h * 0.12):
                             
                             # Valvola geometrica post-calcolo attiva
                             if test_geometria_valvola(filtro_sincro, s):
                                 sestine_nobili.append(s)
                             
-            if i > 2500000: break
-            if i % 50000 == 0: prog.progress(min((i+1)/len(combs) if len(combs)>0 else 1, 1.0))
+            # RIPRISTINATI I LIMITI STRUTTURALI ORIGINALI PER NON MANDARE IN BLOCCO LO SERVER
+            if i > 1500000: break
+            if i % 25000 == 0: prog.progress(min((i+1)/len(combs) if len(combs)>0 else 1, 1.0))
         prog.empty()
 
         risultato = riduttore_garantito(sestine_nobili, 5 if "5" in tipo_riduzione else 4) if tipo_riduzione != "Nessuna" else sestine_nobili
 
-        st.subheader("📄 Report Strategico di Selezione (V24.1)")
+        st.subheader("📄 Report Strategico di Selezione (V24.2)")
         cr1, cr2 = st.columns(2)
         with cr1:
+            # RIPRISTINATO IL LAYOUT IDENTICO COMPRESO DI MEDIA_TARGET INTERA
             st.markdown(f"""
-            **Configurazione Algoritmica V24.1 (Beta):**
+            **Configurazione Algoritmica V24.2:**
             * **Valvola Geometrica Post-Calcolo**: {filtro_sincro}
             * **Filtro 2 Frequenze**: Configurato su Decadimento Esponenziale 
             * **Filtro 3 Ritardi**: Finestra d'Oro (15-26) Protetta dal taglio
             * **Cardini Bloccati (Fisse)**: {cardini}
             * **Macro-Fascia Selezionata**: {scelta_macro.split(':')[0]}
             * **Intervallo di Somma Effettivo**: {valle_target[0]}-{valle_target[1]}
+            * **Media Richiesta per Incastro**: {int(media_target)}
             """)
         with cr2:
             st.metric("Sestine Passate dalla Valvola", len(sestine_nobili))
@@ -354,7 +375,7 @@ try:
         if risultato:
             df_res = pd.DataFrame(risultato, columns=['N1','N2','N3','N4','N5','N6'])
             st.table(df_res.head(40))
-            st.download_button("💾 Esporta per Stampa (CSV)", df_res.to_csv(index=False).encode('utf-8'), "morsa_v24_1_beta.csv", "text/csv")
+            st.download_button("💾 Esporta per Stampa (CSV)", df_res.to_csv(index=False).encode('utf-8'), "morsa_v24_2.csv", "text/csv")
         else:
             st.error("Nessun incastro trovato. Modifica l'ampiezza dello slider della potenza o seleziona una macro-fascia Wyckoff più armonica.")
 
