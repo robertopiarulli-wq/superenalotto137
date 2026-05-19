@@ -1,0 +1,21 @@
+{
+    "Configurazione_Segnale": {
+        "Passi_Totali_Archivio": 43890,
+        "Finestra_Analisi_Passi": 137
+    },
+    "Flusso_Globale_44k": {
+        "ADF_pvalue": 0.0,
+        "KPSS_pvalue": 0.1,
+        "Entropia_Shannon": 4.4988,
+        "Autocorrelazione_Lag1": 0.27538,
+        "Autocorrelazione_Lag2": -0.17622
+    },
+    "Finestra_Stretta_137": {
+        "ADF_pvalue": 0.00593,
+        "KPSS_pvalue": 0.1,
+        "Entropia_Shannon": 4.1129,
+        "Autocorrelazione_Lag1": 0.31641,
+        "Autocorrelazione_Lag2": -0.13228
+    },
+    "Verdetto_Struttura": "\ud83d\udea8 ANOMALIA REGISTRATA: La finestra degli ultimi 137 numeri rompe la barriera del rumore bianco!"
+}
