@@ -384,24 +384,38 @@ except Exception as e:
 
  # LABORATORIO ISOLATO
 
-def rendering_interfaccia_laboratorio_isolato():
+# INIEZIONE COMPLEMENTARE E ISOLATA IN CODA A DASHBOARD_MAIN.PY
+def mostra_laboratorio_isolato_137():
     st.divider()
-    with st.expander("🔬 Laboratorio Fasi Unidimensionale (Finestra Stretta 137 Numeri)"):
-        file_json = "laboratorio_segnale/report_fasi.json"
-        
-        if os.path.exists(file_json):
-            with open(file_json, "r") as f:
-                dati = json.load(f)
-                
-            st.markdown(f"**Verdetto del Segnale:** `{dati.get('Verdetto_Struttura')}`")
-            st.caption(f"Dimensione del Flusso Continuo: {dati['Configurazione_Segnale']['Passi_Totali_Archivio']} numeri consecutivi | Finestra Mobile: {dati['Configurazione_Segnale']['Finestra_Analisi_Passi']} singoli passi.")
+    st.subheader("🔬 Laboratorio Quantistico: Analisi del Flusso Lineare (137x1)")
+    
+    file_json = "laboratorio_segnale/report_fasi.json"
+    
+    if os.path.exists(file_json):
+        with open(file_json, "r") as f:
+            dati = json.load(f)
             
-            c_globale, c_stretta = st.columns(2)
-            with c_globale:
-                st.info("🌐 **Analisi Flusso Storico Globale (44k):**")
-                st.json(dati["Flusso_Globale_44k"])
-            with c_stretta:
-                st.success("⏱️ **Finestra Dinamica Recente (Ultimi 137 Numeri):**")
-                st.json(dati["Finestra_Stretta_137"])
+        # 1. Box di Stato del Segnale
+        verdetto = dati.get("Verdetto_Struttura", "RUMORE_BIANCO_PURO")
+        if "🚨" in verdetto:
+            st.error(f"**Stato Corrente:** {verdetto}")
+        elif "⚠️" in verdetto:
+            st.warning(f"**Stato Corrente:** {verdetto}")
         else:
-            st.warning("Archivio JSON del laboratorio non ancora generato. Verrà creato al prossimo push del workflow.")
+            st.success(f"**Stato Corrente:** {verdetto} (Nessuna memoria a corto raggio rilevata)")
+            
+        st.caption(f"Campioni Archivio: `{dati['Configurazione_Segnale']['Passi_Totali_Archivio']}` numeri consecutivi | Finestra Mobile: `{dati['Configurazione_Segnale']['Finestra_Analisi_Passi']}` singoli passi.")
+        
+        # 2. Colonne di Confronto Statistico
+        c_globale, c_stretta = st.columns(2)
+        with c_globale:
+            st.markdown("🌐 **Memoria Storica Cronica (44k):**")
+            st.json(dati["Flusso_Globale_44k"])
+        with c_stretta:
+            st.markdown("⏱️ **Dinamica Recente (Ultimi 137 Numeri):**")
+            st.json(dati["Finestra_Stretta_137"])
+    else:
+        st.info("In attesa del primo aggiornamento del report asincrono da parte di GitHub Actions.")
+
+# Esegui la funzione in fondo alla pagina
+mostra_laboratorio_isolato_137()
