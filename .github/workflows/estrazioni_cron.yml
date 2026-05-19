@@ -43,16 +43,6 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python analisi_risonanza_137.py
 
-      - name: 4. Commit e Push dei risultati
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add mappa_valli_pressione.csv cardini_scientifici.json
-          git commit -m "Aggiornamento automatico cardini e valli [skip ci]" || echo "Nessuna modifica rilevata"
-          git push
-
-# ... (I tuoi step precedenti di estrazione e aggiornamento Supabase) ...
-
       - name: Installa librerie scientifiche per Laboratorio Fasi
         run: |
           pip install numpy pandas scipy statsmodels supabase
@@ -63,18 +53,28 @@ jobs:
           KEY_SUPABASE: ${{ secrets.SUPABASE_KEY }}
         run: python laboratorio_segnale/motore_lineare_137.py
 
-      - name: Sincronizzazione e Push del Report di Analisi Segnale
+      - name: Sincronizzazione Unificata e Push Atomico dei Risultati
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Facciamo il pull preventivo per evitare sfasamenti se Vercel o modifiche manuali hanno aggiornato il repo
+          # 1. Tracciamento preventivo di tutti i file creati o modificati dai motori
+          git add mappa_valli_pressione.csv cardini_scientifici.json laboratorio_segnale/report_fasi.json
+          
+          # 2. Mettiamo temporaneamente al sicuro le modifiche per pulire l'albero di lavoro
+          git stash
+          
+          # 3. Pull con rebase sicuro senza interferenze da file non committati
           git pull origin main --rebase
           
-          # Forziamo il tracciamento e il commit del SOLO file JSON generato
-          git add laboratorio_segnale/report_fasi.json
+          # 4. Ripristino dei file di analisi sovrascrivendo eventuali modifiche concorrenti
+          git stash pop || git checkout --theirs mappa_valli_pressione.csv cardini_scientifici.json laboratorio_segnale/report_fasi.json
           
-          # Eseguiamo il commit solo se il file JSON ha subito reali variazioni statistiche
-          git commit -m "🤖 [Cron] Aggiornato report_fasi.json lineare (Finestra Stretta 137)" || echo "Nessuna variazione rilevata nel segnale"
+          # 5. Nuovo staging complessivo post-sincronizzazione
+          git add mappa_valli_pressione.csv cardini_scientifici.json laboratorio_segnale/report_fasi.json
           
+          # 6. Esecuzione del commit unificato solo in presenza di reali variazioni dei dati
+          git diff-index --quiet HEAD || git commit -m "🔬 [Automated] Aggiornamento completo Mappe, Cardini e Radiografia Imbuto 137x1"
+          
+          # 7. Spinta finale sicura sul server remoto
           git push origin main
