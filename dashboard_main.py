@@ -1,8 +1,8 @@
-Ecco l'integrazione completa e ingegnerizzata. Ho preso il codice di **`dashboard_main (31).py`** (la versione più recente V24.2 RC con la Matrice delle Simpatie) e ho iniettato la logica di lettura dinamica e radiografia dell'imbuto nel blocco dei parametri, sincronizzandolo in tempo reale con l'output aggiornato del laboratorio.
+Il blocco su Streamlit si è verificato perché hai incollato all'interno del file `dashboard_main.py` anche le mie frasi introduttive testuali (*"Ecco l'integrazione completa..."*). Python ha cercato di interpretarle come righe di codice, generando un errore di sintassi (`SyntaxError`).
 
-Il codice include il sistema di switch automatico dei cardini tramite radio-button e il Monitor Quantistico espanso con il tracciamento dei numeri dominanti e delle coppie consecutive a Lag 1. Non è stata tralasciata alcuna parte della struttura combinatoria originale o dei vincoli del server.
+Nel file `dashboard_main.py` deve risiedere **esclusivamente il codice sorgente puro**, senza alcun testo esplicativo prima o dopo.
 
-Ecco il file completo pronto da sovrascrivere:
+Ecco il codice pulito e completo di `dashboard_main.py`, pronto per essere copiato e incollato integralmente nel file (sovrascrivendo tutto il contenuto attuale):
 
 ```python
 import streamlit as st
@@ -37,7 +37,7 @@ def analizza_dati_freschi():
     cols = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6']
     
     # ----------------------------------------------------------------------
-    # MOTORE DI SCREMATURA GERARCHICO QUANTITATIVO V24.1 (BETA) -> PORTATO A V24.2
+    # MOTORE DI SCREMATURA GERARCHICO QUANTITATIVO V24.2
     # ----------------------------------------------------------------------
     # STEP 1: FILTRO 1 - Esclusione immediata e assoluta dei 6 numeri dell'ultima estrazione
     blacklist_filtro1 = set(df.iloc[0][cols].values.flatten())
@@ -239,7 +239,7 @@ try:
         st.info("ℹ️ Stato Pressione: Nessun Antidoto forzato rilevato nel report.")
 
     # 1. RADAR ANOMALIE & MONITORAGGIO MACRO-FASCE WYCKOFF
-    st.subheader("📡 Radar Casi Rari & Selettore Macro-Fasce Wyckoff")
+    st.subheader("📡 Radar Cases Rari & Selettore Macro-Fasce Wyckoff")
     df_radar = motore_radar_anomalie(df_full)
     
     col_radar, col_valle = st.columns([2, 1])
@@ -281,17 +281,18 @@ try:
     st.write("**Pool Superstiti Nobili Completi (Usa come fisse/cardini):**")
     st.code(f"{pool_residuo}")
 
-    # --- CARICAMENTO INTEGRATO DEI DATI COMPLESSI DEL LABORATORIO QUANTISTICO ---
+    # --- LETTURA LIVE DEL REPORT DEL LABORATORIO QUANTISTICO ---
     file_json = "laboratorio_segnale/report_fasi.json"
     numeri_anomalia = []
     coppie_anomalia = []
-    verdetto_segnale = "Nessun report trovato"
+    verdetto_segnale = "In attesa di report"
     dati_fasi = {}
     
     if os.path.exists(file_json):
         with open(file_json, "r") as f:
             dati_fasi = json.load(f)
         verdetto_segnale = dati_fasi.get("Verdetto_Struttura", "")
+        # Estrazione sicura delle metriche espanse inserite nel report_fasi.json dal motore_lineare
         contenuto_imbuto = dati_fasi.get("Contenuto_Imbuto", {})
         numeri_anomalia = contenuto_imbuto.get("Numeri_Dominanti_Imbuto", [])
         coppie_anomalia = contenuto_imbuto.get("Coppie_Trascinamento_Lag1", [])
@@ -306,13 +307,12 @@ try:
     scelta_acc = st.sidebar.selectbox("🔥 Carica Coppia Nucleo Accelerato:", opzioni_nuclei)
     fisse_auto = [int(x) for x in scelta_acc.split("-")] if scelta_acc != "Manuale" else []
 
-    # Selettore di sorgente indipendente per i cardini (Morsa vs Anomalia)
+    # Selettore dinamico per la provenienza automatica dei Punti di Ancoraggio
     sorgente_cardini = st.sidebar.radio(
         "Sorgente Punti di Ancoraggio (Cardini):", 
         ["Fisse Classiche (Morsa)", "Usa Numeri dell'Imbuto (Anomalia 137x1)"]
     )
     
-    # Assegnazione di default dinamica
     if sorgente_cardini == "Usa Numeri dell'Imbuto (Anomalia 137x1)" and numeri_anomalia:
         default_cardini = [n for n in numeri_anomalia if n not in blacklist][:2]
     else:
@@ -322,7 +322,7 @@ try:
     ampiezza_pool = st.sidebar.slider("Potenza di Espansione Popolo (Slider)", 15, 45, 25)
     tipo_riduzione = st.sidebar.selectbox("Filtro Riduttore Ottimizzato", ["Nessuna", "Garanzia 4", "Garanzia 5"])
 
-    # RIPRISTINATO IL MOLTIPLICATORE ESATTO 0.985 DAL TUO FILE ORIGINALE
+    # RIPRISTINATO IL MOLTIPLICATORE ESATTO 0.985
     target_h = df_full['H'].iloc[0:136].mean() * 0.985
     st.divider()
     m1, m2, m3 = st.columns(3)
@@ -330,14 +330,14 @@ try:
     m2.metric("Cluster Attivo", scienza.get("cluster_attivo", "Non rilevato"))
     m3.metric("Filtro Totale Blacklist (V24.2)", f"{len(blacklist)} num")
 
-    # PRE-CALCOLO PREVENTIVO DEI CANDIDATI SUPERSTITI CON MATRICE DELLE SIMPATIE (STEP 3)
+    # PRE-CALCOLO PREVENTIVO DEI CANDIDATI SUPERSTITI CON MATRICE DELLE SIMPATIE
     somma_fisse = sum(cardini)
     n_mancanti = 6 - len(cardini)
     media_target = (sum(valle_target)/2 - somma_fisse) / n_mancanti if n_mancanti > 0 else 0
     
     tutti_i_numeri = [n for n in range(1, 91) if n not in blacklist and n not in cardini]
     
-    # --- LOGICA MATRICE CO-OCCORRENZE (STEP 3 INIETTATO) ---
+    # --- LOGICA MATRICE CO-OCCORRENZE ---
     bersagli_simpatia = cardini if cardini else pool_residuo
     simpatia_punteggi = {n: 0 for n in tutti_i_numeri}
     cols_est = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6']
@@ -374,14 +374,14 @@ try:
                     check_saturazione = any(sf[0] < somma_s <= sf[1] for sf in sature if sf[0] < 220)
                     
                     if not check_saturazione:
-                        # RIPRISTINATO IL FILTRO RUGOSITÀ ORIGINALE A 0.12 DAL TUO FILE
+                        # RUGOSITÀ ORIGINALE A SOGLIA CRITICA 0.12
                         if abs(calcola_rugosita(s) - target_h) < (target_h * 0.12):
                             
                             # Valvola geometrica post-calcolo attiva
                             if test_geometria_valvola(filtro_sincro, s):
                                 sestine_nobili.append(s)
                             
-            # RIPRISTINATI I LIMITI STRUTTURALI ORIGINALI PER NON MANDARE IN BLOCCO LO SERVER
+            # LIMITI STRUTTURALI SALVA-SERVER
             if i > 1500000: break
             if i % 25000 == 0: prog.progress(min((i+1)/len(combs) if len(combs)>0 else 1, 1.0))
         prog.empty()
@@ -391,7 +391,6 @@ try:
         st.subheader("📄 Report Strategico di Selezione (V24.2)")
         cr1, cr2 = st.columns(2)
         with cr1:
-            # RIPRISTINATO IL LAYOUT IDENTICO COMPRESO DI MEDIA_TARGET INTERA
             st.markdown(f"""
             **Configurazione Algoritmica V24.2:**
             * **Valvola Geometrica Post-Calcolo**: {filtro_sincro}
@@ -416,13 +415,12 @@ try:
 except Exception as e:
     st.error(f"Errore generale: {e}")
 
-# --- LABORATORIO ISOLATO ESPANSO CON RADIOGRAFIA DEGLI INCROCI ---
+# --- MONITORAGGIO COMPLEMENTARE ESPANSO DEL LABORATORIO IN CODA ---
 def mostra_laboratorio_isolato_137_aggiornato(file_json, verdetto_segnale, numeri_anomalia, coppie_anomalia, dati_fasi, cardini):
     st.divider()
     st.subheader("🔬 Laboratorio Quantistico: Analisi del Flusso Lineare (137x1)")
     
     if os.path.exists(file_json) and dati_fasi:
-        # 1. Box di Stato del Segnale
         if "🚨" in verdetto_segnale:
             st.error(f"**Stato Corrente:** {verdetto_segnale}")
         elif "⚠️" in verdetto_segnale:
@@ -432,26 +430,25 @@ def mostra_laboratorio_isolato_137_aggiornato(file_json, verdetto_segnale, numer
             
         st.caption(f"Campioni Archivio: `{dati_fasi['Configurazione_Segnale']['Passi_Totali_Archivio']}` numeri consecutivi | Finestra Mobile: `{dati_fasi['Configurazione_Segnale']['Finestra_Analisi_Passi']}` singoli passi.")
         
-        # Monitor di Sincronia Dinamico
         c_an_1, c_an_2 = st.columns(2)
         with c_an_1:
-            st.markdown("🎯 **Numeri Fisici dentro l'Imbuto (Top 15 Frequenze in 137x1):**")
-            st.code(f"{numeri_anomalia}")
-            
-            # Controllo incrociato real-time dei cardini correnti della dashboard rispetto al flusso cieco
-            sincronizzati = [c for c in cardini if c in numeri_anomalia]
-            if sincronizzati:
-                st.success(f"🔗 **Sincronizzazione Rilevata!** I cardini {sincronizzati} stanno correndo dentro l'imbuto dell'anomalia.")
-            elif cardini:
-                st.warning("⚠️ **Sfasamento Geometrico:** I cardini impostati non passano per l'imbuto dell'anomalia recente.")
+            st.markdown("🎯 **Numeri Fisici dentro l'Imbuto (Top Frequenze in 137x1):**")
+            if numeri_anomalia:
+                st.code(f"{numeri_anomalia}")
+                sincronizzati = [c for c in cardini if c in numeri_anomalia]
+                if sincronizzati:
+                    st.success(f"🔗 **Sincronizzazione Rilevata!** I cardini {sincronizzati} stanno correndo dentro l'imbuto dell'anomalia.")
+                elif cardini:
+                    st.warning("⚠️ **Sfasamento Geometrico:** I cardini impostati non passano per l'imbuto dell'anomalia recente.")
+            else:
+                st.code("Nessun numero dominante calcolato.")
         with c_an_2:
             st.markdown("🔄 **Coppie a Trascinamento Lineare Attivo (Lag 1 Ripetuti):**")
             if coppie_anomalia:
                 st.code(f"{coppie_anomalia}")
             else:
-                st.code("Nessuna coppia a Lag 1 ripetuta nella finestra.")
+                st.code("Nessuna coppia a Lag 1 ripetuta nella finestra recente.")
         
-        # 2. Colonne di Confronto Statistico Astratto
         st.write("")
         c_globale, c_stretta = st.columns(2)
         with c_globale:
@@ -463,7 +460,6 @@ def mostra_laboratorio_isolato_137_aggiornato(file_json, verdetto_segnale, numer
     else:
         st.info("In attesa del primo aggiornamento del report asincrono contenente la mappatura dell'imbuto da parte di GitHub Actions.")
 
-# Esecuzione del modulo di monitoraggio in coda all'interfaccia
 mostra_laboratorio_isolato_137_aggiornato(file_json, verdetto_segnale, numeri_anomalia, coppie_anomalia, dati_fasi, cardini)
 
 ```
