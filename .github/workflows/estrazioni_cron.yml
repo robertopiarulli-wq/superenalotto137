@@ -51,16 +51,30 @@ jobs:
           git commit -m "Aggiornamento automatico cardini e valli [skip ci]" || echo "Nessuna modifica rilevata"
           git push
 
-      - name: Esegui Laboratorio Fasi Lineare (Isolato)
+# ... (I tuoi step precedenti di estrazione e aggiornamento Supabase) ...
+
+      - name: Installa librerie scientifiche per Laboratorio Fasi
+        run: |
+          pip install numpy pandas scipy statsmodels supabase
+
+      - name: Esegui Laboratorio Fasi Lineare (Isolato su 137 singoli passi)
         env:
           URL_SUPABASE: ${{ secrets.URL_SUPABASE }}
           KEY_SUPABASE: ${{ secrets.KEY_SUPABASE }}
         run: python laboratorio_segnale/motore_lineare_137.py
 
-      - name: Commit e Push dei file di report aggiornati
+      - name: Sincronizzazione e Push del Report di Analisi Segnale
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Facciamo il pull preventivo per evitare sfasamenti se Vercel o modifiche manuali hanno aggiornato il repo
+          git pull origin main --rebase
+          
+          # Forziamo il tracciamento e il commit del SOLO file JSON generato
           git add laboratorio_segnale/report_fasi.json
-          git commit -m "🤖 Aggiornato report_fasi.json lineare asincrono" || echo "Nessuna variazione rilevata"
-          git push
+          
+          # Eseguiamo il commit solo se il file JSON ha subito reali variazioni statistiche
+          git commit -m "🤖 [Cron] Aggiornato report_fasi.json lineare (Finestra Stretta 137)" || echo "Nessuna variazione rilevata nel segnale"
+          
+          git push origin main
