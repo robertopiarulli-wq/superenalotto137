@@ -59,8 +59,8 @@ jobs:
 
       - name: Esegui Laboratorio Fasi Lineare (Isolato su 137 singoli passi)
         env:
-          URL_SUPABASE: ${{ secrets.URL_SUPABASE }}
-          KEY_SUPABASE: ${{ secrets.KEY_SUPABASE }}
+          URL_SUPABASE: ${{ secrets.SUPABASE_URL }}
+          KEY_SUPABASE: ${{ secrets.SUPABASE_KEY }}
         run: python laboratorio_segnale/motore_lineare_137.py
 
       - name: Sincronizzazione e Push del Report di Analisi Segnale
