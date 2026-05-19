@@ -1,3 +1,10 @@
+Ecco l'integrazione completa e ingegnerizzata. Ho preso il codice di **`dashboard_main (31).py`** (la versione più recente V24.2 RC con la Matrice delle Simpatie) e ho iniettato la logica di lettura dinamica e radiografia dell'imbuto nel blocco dei parametri, sincronizzandolo in tempo reale con l'output aggiornato del laboratorio.
+
+Il codice include il sistema di switch automatico dei cardini tramite radio-button e il Monitor Quantistico espanso con il tracciamento dei numeri dominanti e delle coppie consecutive a Lag 1. Non è stata tralasciata alcuna parte della struttura combinatoria originale o dei vincoli del server.
+
+Ecco il file completo pronto da sovrascrivere:
+
+```python
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -274,6 +281,21 @@ try:
     st.write("**Pool Superstiti Nobili Completi (Usa come fisse/cardini):**")
     st.code(f"{pool_residuo}")
 
+    # --- CARICAMENTO INTEGRATO DEI DATI COMPLESSI DEL LABORATORIO QUANTISTICO ---
+    file_json = "laboratorio_segnale/report_fasi.json"
+    numeri_anomalia = []
+    coppie_anomalia = []
+    verdetto_segnale = "Nessun report trovato"
+    dati_fasi = {}
+    
+    if os.path.exists(file_json):
+        with open(file_json, "r") as f:
+            dati_fasi = json.load(f)
+        verdetto_segnale = dati_fasi.get("Verdetto_Struttura", "")
+        contenuto_imbuto = dati_fasi.get("Contenuto_Imbuto", {})
+        numeri_anomalia = contenuto_imbuto.get("Numeri_Dominanti_Imbuto", [])
+        coppie_anomalia = contenuto_imbuto.get("Coppie_Trascinamento_Lag1", [])
+
     # 3. SIDEBAR PARAMETRI DI GIOCO
     st.sidebar.header("🎯 Parametri di Gioco")
     
@@ -284,7 +306,19 @@ try:
     scelta_acc = st.sidebar.selectbox("🔥 Carica Coppia Nucleo Accelerato:", opzioni_nuclei)
     fisse_auto = [int(x) for x in scelta_acc.split("-")] if scelta_acc != "Manuale" else []
 
-    cardini = st.sidebar.multiselect("Cardini Attivi (Fisse)", range(1, 91), default=fisse_auto if fisse_auto else (pool_residuo[:2] if pool_residuo else []))
+    # Selettore di sorgente indipendente per i cardini (Morsa vs Anomalia)
+    sorgente_cardini = st.sidebar.radio(
+        "Sorgente Punti di Ancoraggio (Cardini):", 
+        ["Fisse Classiche (Morsa)", "Usa Numeri dell'Imbuto (Anomalia 137x1)"]
+    )
+    
+    # Assegnazione di default dinamica
+    if sorgente_cardini == "Usa Numeri dell'Imbuto (Anomalia 137x1)" and numeri_anomalia:
+        default_cardini = [n for n in numeri_anomalia if n not in blacklist][:2]
+    else:
+        default_cardini = fisse_auto if fisse_auto else (pool_residuo[:2] if pool_residuo else [])
+
+    cardini = st.sidebar.multiselect("Cardini Attivi (Fisse)", range(1, 91), default=default_cardini)
     ampiezza_pool = st.sidebar.slider("Potenza di Espansione Popolo (Slider)", 15, 45, 25)
     tipo_riduzione = st.sidebar.selectbox("Filtro Riduttore Ottimizzato", ["Nessuna", "Garanzia 4", "Garanzia 5"])
 
@@ -382,40 +416,54 @@ try:
 except Exception as e:
     st.error(f"Errore generale: {e}")
 
- # LABORATORIO ISOLATO
-
-# INIEZIONE COMPLEMENTARE E ISOLATA IN CODA A DASHBOARD_MAIN.PY
-def mostra_laboratorio_isolato_137():
+# --- LABORATORIO ISOLATO ESPANSO CON RADIOGRAFIA DEGLI INCROCI ---
+def mostra_laboratorio_isolato_137_aggiornato(file_json, verdetto_segnale, numeri_anomalia, coppie_anomalia, dati_fasi, cardini):
     st.divider()
     st.subheader("🔬 Laboratorio Quantistico: Analisi del Flusso Lineare (137x1)")
     
-    file_json = "laboratorio_segnale/report_fasi.json"
-    
-    if os.path.exists(file_json):
-        with open(file_json, "r") as f:
-            dati = json.load(f)
-            
+    if os.path.exists(file_json) and dati_fasi:
         # 1. Box di Stato del Segnale
-        verdetto = dati.get("Verdetto_Struttura", "RUMORE_BIANCO_PURO")
-        if "🚨" in verdetto:
-            st.error(f"**Stato Corrente:** {verdetto}")
-        elif "⚠️" in verdetto:
-            st.warning(f"**Stato Corrente:** {verdetto}")
+        if "🚨" in verdetto_segnale:
+            st.error(f"**Stato Corrente:** {verdetto_segnale}")
+        elif "⚠️" in verdetto_segnale:
+            st.warning(f"**Stato Corrente:** {verdetto_segnale}")
         else:
-            st.success(f"**Stato Corrente:** {verdetto} (Nessuna memoria a corto raggio rilevata)")
+            st.success(f"**Stato Corrente:** {verdetto_segnale} (Nessuna memoria a corto raggio rilevata)")
             
-        st.caption(f"Campioni Archivio: `{dati['Configurazione_Segnale']['Passi_Totali_Archivio']}` numeri consecutivi | Finestra Mobile: `{dati['Configurazione_Segnale']['Finestra_Analisi_Passi']}` singoli passi.")
+        st.caption(f"Campioni Archivio: `{dati_fasi['Configurazione_Segnale']['Passi_Totali_Archivio']}` numeri consecutivi | Finestra Mobile: `{dati_fasi['Configurazione_Segnale']['Finestra_Analisi_Passi']}` singoli passi.")
         
-        # 2. Colonne di Confronto Statistico
+        # Monitor di Sincronia Dinamico
+        c_an_1, c_an_2 = st.columns(2)
+        with c_an_1:
+            st.markdown("🎯 **Numeri Fisici dentro l'Imbuto (Top 15 Frequenze in 137x1):**")
+            st.code(f"{numeri_anomalia}")
+            
+            # Controllo incrociato real-time dei cardini correnti della dashboard rispetto al flusso cieco
+            sincronizzati = [c for c in cardini if c in numeri_anomalia]
+            if sincronizzati:
+                st.success(f"🔗 **Sincronizzazione Rilevata!** I cardini {sincronizzati} stanno correndo dentro l'imbuto dell'anomalia.")
+            elif cardini:
+                st.warning("⚠️ **Sfasamento Geometrico:** I cardini impostati non passano per l'imbuto dell'anomalia recente.")
+        with c_an_2:
+            st.markdown("🔄 **Coppie a Trascinamento Lineare Attivo (Lag 1 Ripetuti):**")
+            if coppie_anomalia:
+                st.code(f"{coppie_anomalia}")
+            else:
+                st.code("Nessuna coppia a Lag 1 ripetuta nella finestra.")
+        
+        # 2. Colonne di Confronto Statistico Astratto
+        st.write("")
         c_globale, c_stretta = st.columns(2)
         with c_globale:
             st.markdown("🌐 **Memoria Storica Cronica (44k):**")
-            st.json(dati["Flusso_Globale_44k"])
+            st.json(dati_fasi.get("Flusso_Globale_44k", {}))
         with c_stretta:
             st.markdown("⏱️ **Dinamica Recente (Ultimi 137 Numeri):**")
-            st.json(dati["Finestra_Stretta_137"])
+            st.json(dati_fasi.get("Finestra_Stretta_137", {}))
     else:
-        st.info("In attesa del primo aggiornamento del report asincrono da parte di GitHub Actions.")
+        st.info("In attesa del primo aggiornamento del report asincrono contenente la mappatura dell'imbuto da parte di GitHub Actions.")
 
-# Esegui la funzione in fondo alla pagina
-mostra_laboratorio_isolato_137()
+# Esecuzione del modulo di monitoraggio in coda all'interfaccia
+mostra_laboratorio_isolato_137_aggiornato(file_json, verdetto_segnale, numeri_anomalia, coppie_anomalia, dati_fasi, cardini)
+
+```
