@@ -381,3 +381,27 @@ try:
 
 except Exception as e:
     st.error(f"Errore generale: {e}")
+
+ # LABORATORIO ISOLATO
+
+def rendering_interfaccia_laboratorio_isolato():
+    st.divider()
+    with st.expander("🔬 Laboratorio Fasi Unidimensionale (Finestra Stretta 137 Numeri)"):
+        file_json = "laboratorio_segnale/report_fasi.json"
+        
+        if os.path.exists(file_json):
+            with open(file_json, "r") as f:
+                dati = json.load(f)
+                
+            st.markdown(f"**Verdetto del Segnale:** `{dati.get('Verdetto_Struttura')}`")
+            st.caption(f"Dimensione del Flusso Continuo: {dati['Configurazione_Segnale']['Passi_Totali_Archivio']} numeri consecutivi | Finestra Mobile: {dati['Configurazione_Segnale']['Finestra_Analisi_Passi']} singoli passi.")
+            
+            c_globale, c_stretta = st.columns(2)
+            with c_globale:
+                st.info("🌐 **Analisi Flusso Storico Globale (44k):**")
+                st.json(dati["Flusso_Globale_44k"])
+            with c_stretta:
+                st.success("⏱️ **Finestra Dinamica Recente (Ultimi 137 Numeri):**")
+                st.json(dati["Finestra_Stretta_137"])
+        else:
+            st.warning("Archivio JSON del laboratorio non ancora generato. Verrà creato al prossimo push del workflow.")
