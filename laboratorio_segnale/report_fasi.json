@@ -17,5 +17,58 @@
         "Autocorrelazione_Lag1": 0.31641,
         "Autocorrelazione_Lag2": -0.13228
     },
-    "Verdetto_Struttura": "\ud83d\udea8 ANOMALIA REGISTRATA: La finestra degli ultimi 137 numeri rompe la barriera del rumore bianco!"
+    "Verdetto_Struttura": "\ud83d\udea8 ANOMALIA REGISTRATA: La finestra degli ultimi 137 numeri rompe la barriera del rumore bianco!",
+    "Contenuto_Imbuto": {
+        "Numeri_Dominanti_Imbuto": [
+            28,
+            58,
+            7,
+            13,
+            57,
+            60,
+            90,
+            12,
+            27,
+            31,
+            43,
+            47,
+            56,
+            68,
+            69
+        ],
+        "Coppie_Trascinamento_Lag1": [
+            [
+                13,
+                17
+            ],
+            [
+                77,
+                18
+            ],
+            [
+                42,
+                43
+            ],
+            [
+                7,
+                12
+            ],
+            [
+                12,
+                60
+            ],
+            [
+                60,
+                69
+            ],
+            [
+                69,
+                89
+            ],
+            [
+                89,
+                90
+            ]
+        ]
+    }
 }
