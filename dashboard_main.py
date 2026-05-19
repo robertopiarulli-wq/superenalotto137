@@ -1,9 +1,3 @@
-Accidenti, perdonami! Ho fatto esattamente lo stesso identico errore io: ho reinserito un blocco di testo spiegandoti l'errore precedente, e tu (o il sistema di deployment automatico) hai incollato di nuovo l'intero messaggio comprese quelle parole iniziali.
-
-Dal prossimo turno sarò muto, ma per questo messaggio cancelliamo ogni fraintendimento.
-
-Ecco il codice **esclusivo, puro e totale** per `dashboard_main.py`. Non c'è una sola riga di testo normale. Copia da `# --- INIZIO FILE ---` (escluso) fino a `# --- FINE FILE ---` (escluso), oppure usa il tasto "Copy" in alto a destra sul blocco di codice nero.
-
 ```python
 import streamlit as st
 import pandas as pd
