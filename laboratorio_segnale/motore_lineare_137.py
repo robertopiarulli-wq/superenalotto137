@@ -8,19 +8,40 @@ from statsmodels.tsa.stattools import adfuller, kpss
 from statsmodels.tsa.stattools import acf
 from supabase import create_client
 
-# --- ARCHITETTURA DI CONNESSIONE BLINDATA (SIA PER CRON CHE PER SVILUPPO) ---
-URL = os.environ.get("URL_SUPABASE")
-KEY = os.environ.get("KEY_SUPABASE")
+# --- ARCHITETTURA DI MAPPATURA ENVIROMENT AD ADATTAMENTO DINAMICO ---
+# Cerchiamo tutte le possibili varianti di nome comunemente usate nei Secret YAML o in Streamlit
+URL = (
+    os.environ.get("URL_SUPABASE") or 
+    os.environ.get("SUPABASE_URL") or 
+    os.environ.get("url_supabase") or 
+    os.environ.get("supabase_url")
+)
 
-# Se os.environ fallisce (test in locale), andiamo a cercare la libreria Streamlit
+KEY = (
+    os.environ.get("KEY_SUPABASE") or 
+    os.environ.get("SUPABASE_KEY") or 
+    os.environ.get("key_supabase") or 
+    os.environ.get("supabase_key")
+)
+
+# Se i tentativi su os.environ falliscono (es: test locale o fallback), intercettiamo Streamlit secrets
 if not URL or not KEY:
     try:
         import streamlit as st
-        URL = st.secrets["URL_SUPABASE"]
-        KEY = st.secrets["KEY_SUPABASE"]
-    except Exception as e:
-        print("Errore: Impossibile trovare le credenziali Supabase sia in Ambiente che in Streamlit.")
-        exit(1)
+        URL = st.secrets.get("URL_SUPABASE") or st.secrets.get("SUPABASE_URL")
+        KEY = st.secrets.get("KEY_SUPABASE") or st.secrets.get("SUPABASE_KEY")
+    except Exception:
+        pass
+
+# Controllo finale di blocco prima del crash
+if not URL or not KEY:
+    print("❌ ERRORE CRITICO: Credenziali Supabase non rilevate.")
+    print("Mappatura attuale rilevata nel Runner Linux:")
+    print(f" - URL Trovato: {True if URL else False}")
+    print(f" - KEY Trovata: {True if KEY else False}")
+    print("\n👉 Verifica che nel file 'estrazioni_cron.yml' sotto la voce 'env:' del laboratorio ci sia scritto:")
+    print("env:\n  URL_SUPABASE: ${{ secrets.URL_SUPABASE }}\n  KEY_SUPABASE: ${{ secrets.KEY_SUPABASE }}")
+    exit(1)
 
 try:
     supabase = create_client(URL, KEY)
@@ -31,11 +52,10 @@ except Exception as e:
 
 def esegui_analisi_fasi_unidimensionale():
     print("🛰️ Estrazione archivio storico per srotolamento lineare...")
-    # Ordiniamo dal passato verso il presente (desc=False) per preservare la sequenzialità reale
     res = supabase.table("estrazioni").select("n1,n2,n3,n4,n5,n6,data_estrazione").order("data_estrazione", desc=False).execute()
     df = pd.DataFrame(res.data)
     
-    # Srotolamento lineare assoluto delle sestine in un unico vettore continuo
+    # Srotolamento lineare delle sestine in un unico vettore continuo
     colonne = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6']
     flusso_completo = df[colonne].values.flatten()
     
@@ -61,17 +81,15 @@ def esegui_analisi_fasi_unidimensionale():
     # --- PUNTO 1: CARATTERIZZAZIONE DI BASE (Stazionarietà ed Entropia) ---
     print("🧬 Verifica stazionarietà (ADF & KPSS)...")
     try:
-        # Test sul flusso storico di 44k elementi
         report["Flusso_Globale_44k"]["ADF_pvalue"] = round(float(adfuller(flusso_completo)[1]), 5)
         report["Flusso_Globale_44k"]["KPSS_pvalue"] = round(float(kpss(flusso_completo, regression='c', nlags="auto")[1]), 5)
         
-        # Test sulla finestra stretta degli ultimi 137 singoli numeri consecutivi
         report["Finestra_Stretta_137"]["ADF_pvalue"] = round(float(adfuller(flusso_finestra)[1]), 5)
         report["Finestra_Stretta_137"]["KPSS_pvalue"] = round(float(kpss(flusso_finestra, regression='c', nlags="auto")[1]), 5)
     except Exception as e:
         print(f"Avviso computazione test stazionarietà: {e}")
         
-    # Calcolo dell'Entropia di Shannon sulla reale densità di distribuzione (1-90)
+    # Calcolo dell'Entropia di Shannon
     counts_44k, _ = np.histogram(flusso_completo, bins=90, range=(1, 91), density=True)
     counts_137, _ = np.histogram(flusso_finestra, bins=90, range=(1, 91), density=True)
     
@@ -90,8 +108,8 @@ def esegui_analisi_fasi_unidimensionale():
         report["Finestra_Stretta_137"]["Autocorrelazione_Lag1"] = round(float(acf_137[1]), 5)
         report["Finestra_Stretta_137"]["Autocorrelazione_Lag2"] = round(float(acf_137[2]), 5)
         
-        # --- VALIDAZIONE DEL RUMORE (Soglie di Confidenza) ---
-        soglia_confidenza_137 = 2.0 / np.sqrt(finestra_singoli_passi)  # Circa 0.171
+        # --- VALIDAZIONE DEL RUMORE ---
+        soglia_confidenza_137 = 2.0 / np.sqrt(finestra_singoli_passi)
         
         if abs(acf_137[1]) > soglia_confidenza_137:
             report["Verdetto_Struttura"] = "🚨 ANOMALIA REGISTRATA: La finestra degli ultimi 137 numeri rompe la barriera del rumore bianco!"
