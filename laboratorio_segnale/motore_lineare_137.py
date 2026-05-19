@@ -8,23 +8,30 @@ from statsmodels.tsa.stattools import adfuller, kpss
 from statsmodels.tsa.stattools import acf
 from supabase import create_client
 
-# Connessione a Supabase in Sola Lettura
-try:
-    URL = os.environ.get("URL_SUPABASE")
-    KEY = os.environ.get("KEY_SUPABASE")
-    if not URL or not KEY:
-        # Fallback di sicurezza per i test locali di sviluppo
+# --- ARCHITETTURA DI CONNESSIONE BLINDATA (SIA PER CRON CHE PER SVILUPPO) ---
+URL = os.environ.get("URL_SUPABASE")
+KEY = os.environ.get("KEY_SUPABASE")
+
+# Se os.environ fallisce (test in locale), andiamo a cercare la libreria Streamlit
+if not URL or not KEY:
+    try:
         import streamlit as st
         URL = st.secrets["URL_SUPABASE"]
         KEY = st.secrets["KEY_SUPABASE"]
+    except Exception as e:
+        print("Errore: Impossibile trovare le credenziali Supabase sia in Ambiente che in Streamlit.")
+        exit(1)
+
+try:
     supabase = create_client(URL, KEY)
 except Exception as e:
-    print(f"Errore connessione Supabase (Sola Lettura): {e}")
+    print(f"Errore inizializzazione client Supabase: {e}")
     exit(1)
+
 
 def esegui_analisi_fasi_unidimensionale():
     print("🛰️ Estrazione archivio storico per srotolamento lineare...")
-    # Ordiniamo dal passato verso il presente (desc=False) per preservare la consequenzialità temporale reale
+    # Ordiniamo dal passato verso il presente (desc=False) per preservare la sequenzialità reale
     res = supabase.table("estrazioni").select("n1,n2,n3,n4,n5,n6,data_estrazione").order("data_estrazione", desc=False).execute()
     df = pd.DataFrame(res.data)
     
@@ -35,7 +42,7 @@ def esegui_analisi_fasi_unidimensionale():
     total_elementi = len(flusso_completo)
     print(f"📊 Flusso srotolato: {total_elementi} numeri consecutivi totali.")
     
-    # --- LA TUA NUOVA LOGICA: Finestra mobile di esattamente 137 singoli numeri ---
+    # Finestra mobile di esattamente 137 singoli numeri consecutivi (Logica 137x1)
     finestra_singoli_passi = 137
     flusso_finestra = flusso_completo[-finestra_singoli_passi:]
     print(f"⏱️ Finestra dinamica agganciata sugli ultimi {len(flusso_finestra)} singoli numeri emessi.")
@@ -59,11 +66,10 @@ def esegui_analisi_fasi_unidimensionale():
         report["Flusso_Globale_44k"]["KPSS_pvalue"] = round(float(kpss(flusso_completo, regression='c', nlags="auto")[1]), 5)
         
         # Test sulla finestra stretta degli ultimi 137 singoli numeri consecutivi
-        # Nota: su campioni molto corti (137) i p-value indicano fluttuazioni di regime locali
         report["Finestra_Stretta_137"]["ADF_pvalue"] = round(float(adfuller(flusso_finestra)[1]), 5)
         report["Finestra_Stretta_137"]["KPSS_pvalue"] = round(float(kpss(flusso_finestra, regression='c', nlags="auto")[1]), 5)
     except Exception as e:
-        print(f"Avviso computazione test: {e}")
+        print(f"Avviso computazione test stazionarietà: {e}")
         
     # Calcolo dell'Entropia di Shannon sulla reale densità di distribuzione (1-90)
     counts_44k, _ = np.histogram(flusso_completo, bins=90, range=(1, 91), density=True)
@@ -73,24 +79,26 @@ def esegui_analisi_fasi_unidimensionale():
     report["Finestra_Stretta_137"]["Entropia_Shannon"] = round(float(stats.entropy(counts_137[counts_137 > 0])), 4)
     
     # --- PUNTO 2: DIPENDENZE LINEARI (ACF Passo-Passo) ---
-    # Lag 1: Correlazione tra il numero uscito e quello immediatamente successivo nella sequenza srotolata
     print("📉 Calcolo dell'autocorrelazione a lag singolo...")
-    acf_44k = acf(flusso_completo, nlags=5)
-    acf_137 = acf(flusso_finestra, nlags=5)
-    
-    report["Flusso_Globale_44k"]["Autocorrelazione_Lag1"] = round(float(acf_44k[1]), 5)
-    report["Flusso_Globale_44k"]["Autocorrelazione_Lag2"] = round(float(acf_44k[2]), 5)
-    
-    report["Finestra_Stretta_137"]["Autocorrelazione_Lag1"] = round(float(acf_137[1]), 5)
-    report["Finestra_Stretta_137"]["Autocorrelazione_Lag2"] = round(float(acf_137[2]), 5)
-    
-    # --- VALIDAZIONE DEL RUMORE (Soglie di Confidenza) ---
-    soglia_confidenza_137 = 2.0 / np.sqrt(finestra_singoli_passi)  # Circa 0.171 per N=137
-    
-    if abs(acf_137[1]) > soglia_confidenza_137:
-        report["Verdetto_Struttura"] = "🚨 ANOMALIA REGISTRATA: La finestra degli ultimi 137 numeri rompe la barriera del rumore bianco!"
-    elif report["Flusso_Globale_44k"]["ADF_pvalue"] > 0.05:
-        report["Verdetto_Struttura"] = "⚠️ REGIME SWITCH: Rilevati segnali di non-stazionarietà nel lungo periodo."
+    try:
+        acf_44k = acf(flusso_completo, nlags=5)
+        acf_137 = acf(flusso_finestra, nlags=5)
+        
+        report["Flusso_Globale_44k"]["Autocorrelazione_Lag1"] = round(float(acf_44k[1]), 5)
+        report["Flusso_Globale_44k"]["Autocorrelazione_Lag2"] = round(float(acf_44k[2]), 5)
+        
+        report["Finestra_Stretta_137"]["Autocorrelazione_Lag1"] = round(float(acf_137[1]), 5)
+        report["Finestra_Stretta_137"]["Autocorrelazione_Lag2"] = round(float(acf_137[2]), 5)
+        
+        # --- VALIDAZIONE DEL RUMORE (Soglie di Confidenza) ---
+        soglia_confidenza_137 = 2.0 / np.sqrt(finestra_singoli_passi)  # Circa 0.171
+        
+        if abs(acf_137[1]) > soglia_confidenza_137:
+            report["Verdetto_Struttura"] = "🚨 ANOMALIA REGISTRATA: La finestra degli ultimi 137 numeri rompe la barriera del rumore bianco!"
+        elif report["Flusso_Globale_44k"]["ADF_pvalue"] > 0.05:
+            report["Verdetto_Struttura"] = "⚠️ REGIME SWITCH: Rilevati segnali di non-stazionarietà nel lungo periodo."
+    except Exception as e:
+        print(f"Avviso computazione ACF: {e}")
         
     # --- SCRITTURA DENTRO IL FILE JSON DEDICATO ---
     cartella_corrente = os.path.dirname(__file__)
@@ -98,7 +106,7 @@ def esegui_analisi_fasi_unidimensionale():
     
     with open(percorso_json, "w") as f:
         json.dump(report, f, indent=4)
-    print(f"✅ Analisi lineare conclusa. File aggiornato: {percorso_json}")
+    print(f"✅ Analisi lineare conclusa. File aggiornato con successo: {percorso_json}")
 
 if __name__ == "__main__":
     esegui_analisi_fasi_unidimensionale()
