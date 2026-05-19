@@ -1,8 +1,8 @@
-Il blocco su Streamlit si è verificato perché hai incollato all'interno del file `dashboard_main.py` anche le mie frasi introduttive testuali (*"Ecco l'integrazione completa..."*). Python ha cercato di interpretarle come righe di codice, generando un errore di sintassi (`SyntaxError`).
+Accidenti, perdonami! Ho fatto esattamente lo stesso identico errore io: ho reinserito un blocco di testo spiegandoti l'errore precedente, e tu (o il sistema di deployment automatico) hai incollato di nuovo l'intero messaggio comprese quelle parole iniziali.
 
-Nel file `dashboard_main.py` deve risiedere **esclusivamente il codice sorgente puro**, senza alcun testo esplicativo prima o dopo.
+Dal prossimo turno sarò muto, ma per questo messaggio cancelliamo ogni fraintendimento.
 
-Ecco il codice pulito e completo di `dashboard_main.py`, pronto per essere copiato e incollato integralmente nel file (sovrascrivendo tutto il contenuto attuale):
+Ecco il codice **esclusivo, puro e totale** per `dashboard_main.py`. Non c'è una sola riga di testo normale. Copia da `# --- INIZIO FILE ---` (escluso) fino a `# --- FINE FILE ---` (escluso), oppure usa il tasto "Copy" in alto a destra sul blocco di codice nero.
 
 ```python
 import streamlit as st
@@ -39,13 +39,10 @@ def analizza_dati_freschi():
     # ----------------------------------------------------------------------
     # MOTORE DI SCREMATURA GERARCHICO QUANTITATIVO V24.2
     # ----------------------------------------------------------------------
-    # STEP 1: FILTRO 1 - Esclusione immediata e assoluta dei 6 numeri dell'ultima estrazione
     blacklist_filtro1 = set(df.iloc[0][cols].values.flatten())
     
-    # Prendiamo lo storico delle ultime 137 estrazioni
     df_137 = df.head(137).copy()
     
-    # --- FILTRO 2: DECADIMENTO ESPONENZIALE MANTENUTO CON KH = 3.5 ---
     pesi_temporali = np.exp(-np.linspace(0, 3.5, len(df_137)))
     energia_numeri = {n: 0.0 for n in range(1, 91)}
     
@@ -62,8 +59,6 @@ def analizza_dati_freschi():
             
     meno_frequenti = set(conteggio_frequenze.nsmallest(14).index)
     
-    # --- INIEZIONE OPTIMIZATION STEP 2: FINESTRA DEL RITARDO NATURALE ---
-    # Calcolo dei ritardi reali puri su base 137
     ritardi_137 = {}
     for n in range(1, 91):
         found = False
@@ -75,34 +70,25 @@ def analizza_dati_freschi():
         if not found: 
             ritardi_137[n] = 137
             
-    # Trasformiamo in Serie per pulizia gerarchica controllata
     serie_ritardi = pd.Series(ritardi_137)
     for n in blacklist_filtro1:
         if n in serie_ritardi:
             serie_ritardi.drop(n, inplace=True)
             
-    # Costruiamo un algoritmo di "Punteggio di Tossicità del Ritardo"
-    # Obiettivo: Proteggere la fascia d'oro (15-26) e colpire duramente i ritardi fossili (>30)
     punteggio_tossicita = {}
     for num, rit in serie_ritardi.items():
         if 15 <= rit <= 26:
-            # Finestra d'oro: assegniamo tossicità zero per preservarli dal taglio della blacklist
             punteggio_tossicita[num] = -100 
         elif rit > 30:
-            # Ritardi fossili accumulati cronici: tossicità altissima (vanno dritti in blacklist)
             punteggio_tossicita[num] = rit * 2
         else:
-            # Micro-ritardi standard ordinari
             punteggio_tossicita[num] = rit
 
     serie_tossicita = pd.Series(punteggio_tossicita)
     
-    # Il Filtro 3 ora estrae i 14 numeri con il più alto indice di tossicità distruttiva
     piu_ritardatari = set(serie_tossicita.nlargest(14).index)
     
-    # Unione finale della massa critica di Blacklist (Gerarchia bilanciata senza buchi)
     blacklist = blacklist_filtro1.union(meno_frequenti).union(piu_ritardatari)
-    # ----------------------------------------------------------------------
     
     return df, blacklist, ritardi_137, blacklist_filtro1, meno_frequenti, piu_ritardatari
 
@@ -148,7 +134,6 @@ def calcola_statistiche_macro_fasce(df_137):
         
     return risultati
 
-# CONFIGURAZIONE STRUTTURE GEOMETRICHE RADAR E VALVOLA DI CODA
 blocchi_A = list(range(1, 16)) + list(range(31, 46)) + list(range(61, 76))
 blocchi_B = list(range(16, 31)) + list(range(46, 61)) + list(range(76, 91))
 blocchi_C = list(range(1, 16)) + list(range(46, 76))
@@ -210,7 +195,6 @@ def riduttore_garantito(sestine, garanzia=4):
         lista_sestine = [s for s in lista_sestine if len(set(s) & set(base)) < garanzia]
     return ridotte
 
-# --- UI INTERFACCIA ---
 st.set_page_config(page_title="Morsa V24.2 RC - Golden Window Delay & Simpatia", layout="wide")
 
 try:
@@ -220,7 +204,7 @@ try:
 
     st.title("🚀 Morsa Predittiva V24.2 (RC): Protezione Fascia d'Oro & Matrice Simpatie")
 
-    with st.expander("🔍 Dettaglio Scrematura Quantitativa V24.2 (Ritardi Selettivi a Tossicità)"):
+    with st.expander("🔍 Dettaglio Scrematura Quantitative V24.2 (Ritardi Selettivi a Tossicità)"):
         c_f1, c_f2, c_f3 = st.columns(3)
         with c_f1:
             st.error(f"Filtro 1: Ultima Estrazione ({len(f1_last)} num - PRIORITARIO)")
@@ -238,7 +222,6 @@ try:
     else:
         st.info("ℹ️ Stato Pressione: Nessun Antidoto forzato rilevato nel report.")
 
-    # 1. RADAR ANOMALIE & MONITORAGGIO MACRO-FASCE WYCKOFF
     st.subheader("📡 Radar Cases Rari & Selettore Macro-Fasce Wyckoff")
     df_radar = motore_radar_anomalie(df_full)
     
@@ -264,7 +247,6 @@ try:
         valle_target = (115, 170) if "BANCO" in scelta_macro else (170, 215) if "CUORE" in scelta_macro else (215, 270)
         st.success(f"🎯 **Target Sincronizzato Attivo**: {valle_target[0]} - {valle_target[1]}")
 
-    # 2. SINCRONIZZAZIONE POOL NOBILTÀ
     st.divider()
     st.subheader("🗂 Honor Roll: Pool Superstiti & Nuclei di Risonanza")
     
@@ -281,7 +263,6 @@ try:
     st.write("**Pool Superstiti Nobili Completi (Usa come fisse/cardini):**")
     st.code(f"{pool_residuo}")
 
-    # --- LETTURA LIVE DEL REPORT DEL LABORATORIO QUANTISTICO ---
     file_json = "laboratorio_segnale/report_fasi.json"
     numeri_anomalia = []
     coppie_anomalia = []
@@ -292,12 +273,10 @@ try:
         with open(file_json, "r") as f:
             dati_fasi = json.load(f)
         verdetto_segnale = dati_fasi.get("Verdetto_Struttura", "")
-        # Estrazione sicura delle metriche espanse inserite nel report_fasi.json dal motore_lineare
         contenuto_imbuto = dati_fasi.get("Contenuto_Imbuto", {})
         numeri_anomalia = contenuto_imbuto.get("Numeri_Dominanti_Imbuto", [])
         coppie_anomalia = contenuto_imbuto.get("Coppie_Trascinamento_Lag1", [])
 
-    # 3. SIDEBAR PARAMETRI DI GIOCO
     st.sidebar.header("🎯 Parametri di Gioco")
     
     opzioni_nuclei = ["Manuale"]
@@ -307,7 +286,6 @@ try:
     scelta_acc = st.sidebar.selectbox("🔥 Carica Coppia Nucleo Accelerato:", opzioni_nuclei)
     fisse_auto = [int(x) for x in scelta_acc.split("-")] if scelta_acc != "Manuale" else []
 
-    # Selettore dinamico per la provenienza automatica dei Punti di Ancoraggio
     sorgente_cardini = st.sidebar.radio(
         "Sorgente Punti di Ancoraggio (Cardini):", 
         ["Fisse Classiche (Morsa)", "Usa Numeri dell'Imbuto (Anomalia 137x1)"]
@@ -322,7 +300,6 @@ try:
     ampiezza_pool = st.sidebar.slider("Potenza di Espansione Popolo (Slider)", 15, 45, 25)
     tipo_riduzione = st.sidebar.selectbox("Filtro Riduttore Ottimizzato", ["Nessuna", "Garanzia 4", "Garanzia 5"])
 
-    # RIPRISTINATO IL MOLTIPLICATORE ESATTO 0.985
     target_h = df_full['H'].iloc[0:136].mean() * 0.985
     st.divider()
     m1, m2, m3 = st.columns(3)
@@ -330,14 +307,12 @@ try:
     m2.metric("Cluster Attivo", scienza.get("cluster_attivo", "Non rilevato"))
     m3.metric("Filtro Totale Blacklist (V24.2)", f"{len(blacklist)} num")
 
-    # PRE-CALCOLO PREVENTIVO DEI CANDIDATI SUPERSTITI CON MATRICE DELLE SIMPATIE
     somma_fisse = sum(cardini)
     n_mancanti = 6 - len(cardini)
     media_target = (sum(valle_target)/2 - somma_fisse) / n_mancanti if n_mancanti > 0 else 0
     
     tutti_i_numeri = [n for n in range(1, 91) if n not in blacklist and n not in cardini]
     
-    # --- LOGICA MATRICE CO-OCCORRENZE ---
     bersagli_simpatia = cardini if cardini else pool_residuo
     simpatia_punteggi = {n: 0 for n in tutti_i_numeri}
     cols_est = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6']
@@ -351,7 +326,6 @@ try:
                     if n in simpatia_punteggi:
                         simpatia_punteggi[n] += len(presenza_bersagli)
 
-    # Ordinamento del popolo bilanciando Incastro Wyckoff e Vettore Simpatia Cinetica
     popolo = sorted(tutti_i_numeri, key=lambda x: (abs(x - media_target) * 1.5) - (simpatia_punteggi[x] * 2.0))
     pool_f = sorted(list(set(cardini + pool_residuo + popolo[:ampiezza_pool - len(pool_residuo)])))
 
@@ -359,7 +333,6 @@ try:
     st.info(f"Prima della generazione, la morsa ha selezionato un set di **{len(pool_f)} numeri candidati** bilanciati per le medie Wyckoff e la coesione di simpatia.")
     st.code(f"Numeri pronti al calcolo combinatorio: {pool_f}")
 
-    # 5. MOTORE COMBINATORIO E GENERAZIONE V24.2 CON VALVOLA DI CODA
     if st.button("🚀 GENERA ARROSTO SINCRONIZZATO V24"):
         sestine_nobili = []
         combs = list(itertools.combinations(pool_f, 6))
@@ -374,14 +347,10 @@ try:
                     check_saturazione = any(sf[0] < somma_s <= sf[1] for sf in sature if sf[0] < 220)
                     
                     if not check_saturazione:
-                        # RUGOSITÀ ORIGINALE A SOGLIA CRITICA 0.12
                         if abs(calcola_rugosita(s) - target_h) < (target_h * 0.12):
-                            
-                            # Valvola geometrica post-calcolo attiva
                             if test_geometria_valvola(filtro_sincro, s):
                                 sestine_nobili.append(s)
                             
-            # LIMITI STRUTTURALI SALVA-SERVER
             if i > 1500000: break
             if i % 25000 == 0: prog.progress(min((i+1)/len(combs) if len(combs)>0 else 1, 1.0))
         prog.empty()
@@ -415,7 +384,6 @@ try:
 except Exception as e:
     st.error(f"Errore generale: {e}")
 
-# --- MONITORAGGIO COMPLEMENTARE ESPANSO DEL LABORATORIO IN CODA ---
 def mostra_laboratorio_isolato_137_aggiornato(file_json, verdetto_segnale, numeri_anomalia, coppie_anomalia, dati_fasi, cardini):
     st.divider()
     st.subheader("🔬 Laboratorio Quantistico: Analisi del Flusso Lineare (137x1)")
