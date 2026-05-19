@@ -423,5 +423,3 @@ def mostra_laboratorio_isolato_137_aggiornato(file_json, verdetto_segnale, numer
         st.info("In attesa del primo aggiornamento del report asincrono contenente la mappatura dell'imbuto da parte di GitHub Actions.")
 
 mostra_laboratorio_isolato_137_aggiornato(file_json, verdetto_segnale, numeri_anomalia, coppie_anomalia, dati_fasi, cardini)
-
-```
