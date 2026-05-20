@@ -218,9 +218,9 @@ try:
             st.info(f"Filtro 3: 14 a Massima Tossicità ({len(f3_rit)} num)")
             st.code(f"{sorted(list(f3_rit))}")
 
-    # --- NOTA D'ANTIDOTO RIPRISTINATA ---
+    # --- NOTA D'ANTIDOTO ORIGINALE RIPRISTINATA ---
     if antidoto_attivo:
-        st.info(f"💡 **RACCOMANDAZIONE DI BILANCIAMENTO ANTIDOTO:** Il sistema rileva una distorsione strutturale. Antidoto suggerito: `{antidoto_attivo}`. Si consiglia di orientare la scelta del target Wyckoff di conseguenza.")
+        st.info(f"💡 **RACCOMANDAZIONE DI BILANCIAMENTO ANTIDOTO:** Il sistema rileva una distorsione strutturale. Antidoto suggerito dall'analisi indipendente: `{antidoto_attivo}`.")
 
     # RADAR FASCE WYCKOFF
     st.subheader("📡 Radar Casi Rari & Selettore Macro-Fasce Wyckoff")
@@ -237,13 +237,8 @@ try:
         ])
         st.dataframe(df_stats_print, hide_index=True)
         
-        default_idx = 0
-        if valli:
-            if any(115 <= v[0] <= 170 for v in valli): default_idx = 0
-            elif any(170 < v[0] <= 215 for v in valli): default_idx = 1
-            elif any(215 < v[0] <= 270 for v in valli): default_idx = 2
-            
-        scelta_macro = st.radio("Target Wyckoff:", ["BANCO [115, 170]", "CUORE (170, 215]", "TETTO (215, 270]"], index=default_idx)
+        # Ripristinato il controllo manuale puro, nessun condizionamento o default variabile automatico
+        scelta_macro = st.radio("Target Wyckoff:", ["BANCO [115, 170]", "CUORE (170, 215]", "TETTO (215, 270]"], index=1)
         valle_target = (115, 170) if "BANCO" in scelta_macro else (170, 215) if "CUORE" in scelta_macro else (215, 270)
 
     st.divider()
@@ -262,9 +257,7 @@ try:
         ["Fisse Classiche (Morsa)", "Usa Imbuto Correlati Cascata (Lag-1 Espanso)"]
     )
     
-    # Sincronizzazione automatica dei cardini fisse
     if sorgente_cardini == "Usa Imbuto Correlati Cascata (Lag-1 Espanso)" and numeri_anomalia:
-        # Nel nuovo paradigma prendiamo i primi 2 numeri dell'imbuto a prescindere se in blacklist
         default_cardini = numeri_anomalia[:2]
     else:
         default_cardini = pool_residuo[:2] if pool_residuo else []
@@ -285,15 +278,10 @@ try:
     n_mancanti = 6 - len(cardini)
     media_target = (sum(valle_target)/2 - somma_fisse) / n_mancanti if n_mancanti > 0 else 0
     
-    # Costruiamo il pool in base alla tua intuizione di priorità assoluta
     if sorgente_cardini == "Usa Imbuto Correlati Cascata (Lag-1 Espanso)" and numeri_anomalia:
-        # 1. Inseriamo d'ufficio tutti i 12 numeri dell'anomalia (Immuni da Blacklist!)
         base_immune = numeri_anomalia.copy()
-        
-        # 2. Tutti gli altri numeri rimasti fuori dai 12 devono invece sottostare alla blacklist
         candidati_esterni = [n for n in range(1, 91) if n not in base_immune and n not in cardini and n not in blacklist]
         
-        # Calcolo simpatie basato sui 12 dominanti
         simpatia_punteggi = {n: 0 for n in candidati_esterni}
         for row in df_full.head(137)[['n1','n2','n3','n4','n5','n6']].values:
             presenza = [b for b in base_immune if b in row]
@@ -302,14 +290,10 @@ try:
                     if n in simpatia_punteggi:
                         simpatia_punteggi[n] += len(presenza)
                         
-        # Ordiniamo i candidati esterni puliti per bilanciamento e simpatia
         popolo_esterno_ordinato = sorted(candidati_esterni, key=lambda x: (abs(x - media_target) * 1.5) - (simpatia_punteggi[x] * 2.0))
-        
-        # 3. Riempiamo lo spazio rimasto fino alla quota impostata (es. 25) usando i migliori esterni puliti
         spazio_rimanente = max(0, ampiezza_pool - len(cardini) - len(base_immune))
         pool_f = sorted(list(set(cardini + base_immune + popolo_esterno_ordinato[:spazio_rimanente])))
     else:
-        # Modalità classica Morsa
         tutti_i_numeri = [n for n in range(1, 91) if n not in blacklist and n not in cardini]
         basi_simpatia = cardini if cardini else pool_residuo
         simpatia_punteggi = {n: 0 for n in tutti_i_numeri}
@@ -345,7 +329,6 @@ try:
             if i % 25000 == 0: prog.progress(min((i+1)/len(combs) if len(combs)>0 else 1, 1.0))
         prog.empty()
 
-        # --- CONTEGGI E RIDUTTORE GEOMETRICO RIPRISTINATI ---
         tot_generate = len(sestine_nobili)
         
         if tipo_reduction != "Nessuna":
