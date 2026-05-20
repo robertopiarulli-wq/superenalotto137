@@ -29,11 +29,8 @@ def analizza_dati_freschi():
     
     cols = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6']
     
-    # ----------------------------------------------------------------------
-    # MOTORE DI SCREMATURA GERARCHICO QUANTITATIVO V24.2
-    # ----------------------------------------------------------------------
+    # --- MOTORE DI SCREMATURA GERARCHICO QUANTITATIVO V24.2 ---
     blacklist_filtro1 = set(df.iloc[0][cols].values.flatten())
-    
     df_137 = df.head(137).copy()
     
     pesi_temporali = np.exp(-np.linspace(0, 3.5, len(df_137)))
@@ -78,11 +75,9 @@ def analizza_dati_freschi():
             punteggio_tossicita[num] = rit
 
     serie_tossicita = pd.Series(punteggio_tossicita)
-    
     piu_ritardatari = set(serie_tossicita.nlargest(14).index)
     
     blacklist = blacklist_filtro1.union(meno_frequenti).union(piu_ritardatari)
-    
     return df, blacklist, ritardi_137, blacklist_filtro1, meno_frequenti, piu_ritardatari
 
 def carica_report_motori():
@@ -108,7 +103,6 @@ def carica_report_motori():
 
 def calcola_statistiche_macro_fasce(df_137):
     risultati = {"BANCO": {"freq": 0, "rit": 0}, "CUORE": {"freq": 0, "rit": 0}, "TETTO": {"freq": 0, "rit": 0}}
-    
     for _, row in df_137.iterrows():
         somma = row.n1 + row.n2 + row.n3 + row.n4 + row.n5 + row.n6
         if 115 <= somma <= 170: risultati["BANCO"]["freq"] += 1
@@ -124,7 +118,6 @@ def calcola_statistiche_macro_fasce(df_137):
                 break
             rit += 1
         risultati[chiave]["rit"] = rit
-        
     return risultati
 
 blocchi_A = list(range(1, 16)) + list(range(31, 46)) + list(range(61, 76))
@@ -156,7 +149,6 @@ def motore_radar_anomalie(df):
         "Fascia Alternata C": lambda s: all(n in blocchi_C for n in s),
         "Fascia Alternata D": lambda s: all(n in blocchi_D for n in s),
     }
-    
     radar_results = []
     for nome, test in profili.items():
         serie = df.apply(lambda r: 1 if test([r.n1, r.n2, r.n3, r.n4, r.n5, r.n6]) else 0, axis=1)
@@ -166,10 +158,8 @@ def motore_radar_anomalie(df):
         for val in serie:
             if val == 1: break
             ritardo += 1
-        
         attesa = 1/freq_storica if freq_storica > 0 else 500
         tensione = ritardo / attesa
-        
         radar_results.append({
             "Profilo Geometrico": nome,
             "Ritardo Attuale": ritardo,
@@ -197,69 +187,11 @@ try:
 
     st.title("🚀 Morsa Predittiva V24.2 (RC): Protezione Fascia d'Oro & Matrice Simpatie")
 
-    with st.expander("🔍 Dettaglio Scrematura Quantitative V24.2 (Ritardi Selettivi a Tossicità)"):
-        c_f1, c_f2, c_f3 = st.columns(3)
-        with c_f1:
-            st.error(f"Filtro 1: Ultima Estrazione ({len(f1_last)} num - PRIORITARIO)")
-            st.code(f"{sorted(list(f1_last))}")
-        with c_f2:
-            st.warning(f"Filtro 2: 14 Meno Energetici ({len(f2_freq)} num - Decadimento Esponenziale)")
-            st.code(f"{sorted(list(f2_freq))}")
-        with c_f3:
-            st.info(f"Filtro 3: 14 a Massima Tossicità ({len(f3_rit)} num - Protetta la Finestra 15-26)")
-            st.code(f"{sorted(list(f3_rit))}")
-        st.success(f"Massa Critica Blacklist Totale Effettiva: {len(blacklist)} numeri eliminati alla partenza.")
-
-    if antidoto_attivo == 'BILANCIARE_CON_ALTI':
-        st.error("🚨 ALERT PRESSIONE SATURE: Antidoto consigliato -> BILANCIARE_CON_ALTI (Forzare su fascia TETTO).")
-    else:
-        st.info("ℹ️ Stato Pressione: Nessun Antidoto forzato rilevato nel report.")
-
-    st.subheader("📡 Radar Cases Rari & Selettore Macro-Fasce Wyckoff")
-    df_radar = motore_radar_anomalie(df_full)
-    
-    col_radar, col_valle = st.columns([2, 1])
-    with col_radar:
-        st.dataframe(df_radar, hide_index=True)
-    with col_valle:
-        st.write("**📊 Metriche Live delle Macro-Fasce (Ultime 137 estrazioni):**")
-        df_stats_print = pd.DataFrame([
-            {"Macro-Fascia": "BANCO [115, 170]", "Frequenza (Uscite)": stats_macro["BANCO"]["freq"], "Ritardo Attuale": stats_macro["BANCO"]["rit"]},
-            {"Macro-Fascia": "CUORE (170, 215]", "Frequenza (Uscite)": stats_macro["CUORE"]["freq"], "Ritardo Attuale": stats_macro["CUORE"]["rit"]},
-            {"Macro-Fascia": "TETTO (215, 270]", "Frequenza (Uscite)": stats_macro["TETTO"]["freq"], "Ritardo Attuale": stats_macro["TETTO"]["rit"]},
-        ])
-        st.dataframe(df_stats_print, hide_index=True)
-
-        st.write("**🎯 Seleziona la Macro-Fascia di Target del calcolo:**")
-        scelta_macro = st.radio(
-            "Target Wyckoff Compresso:",
-            ["BANCO (Somme Basse / Compressione): [115, 170]", 
-             "CUORE (Somme Medie / Equilibrio): (170, 215]", 
-             "TETTO (Somme Alte / Espansione & Antidoto): (215, 270]"]
-        )
-        valle_target = (115, 170) if "BANCO" in scelta_macro else (170, 215) if "CUORE" in scelta_macro else (215, 270)
-        st.success(f"🎯 **Target Sincronizzato Attivo**: {valle_target[0]} - {valle_target[1]}")
-
-    st.divider()
-    st.subheader("🗂 Honor Roll: Pool Superstiti & Nuclei di Risonanza")
-    
-    if scienza["nuclei_accelerati"]:
-        st.write("🔥 **Nuclei Accelerati Attivi (Risonanza)**:")
-        st.code(f"{scienza['nuclei_accelerati']}")
-        
-    pool_residuo = [n for n in scienza["pool_eletto"] if n not in blacklist]
-    
-    filtro_sincro = st.selectbox("🎯 APPLICA VALVOLA GEOMETRICA (Sincronizza il profilo Critico del Radar stasera):", 
-                                ["Nessuno", "Solo Under 45", "Solo Over 45", "Solo Pari", "Solo Dispari", 
-                                 "Solo Media (20-70)", "Solo Alternata A", "Solo Alternata B", "Solo Alternata C", "Solo Alternata D"])
-
-    st.write("**Pool Superstiti Nobili Completi (Usa come fisse/cardini):**")
-    st.code(f"{pool_residuo}")
-
+    # --- REPERIMENTO AUTOMATICO DATI LABORATORIO FASCE ---
     file_json = "laboratorio_segnale/report_fasi.json"
     numeri_anomalia = []
     coppie_anomalia = []
-    verdetto_segnale = "In attesa di report"
+    verdetto_segnale = "In attesa del report delle azioni"
     dati_fasi = {}
     
     if os.path.exists(file_json):
@@ -270,61 +202,102 @@ try:
         numeri_anomalia = contenuto_imbuto.get("Numeri_Dominanti_Imbuto", [])
         coppie_anomalia = contenuto_imbuto.get("Coppie_Trascinamento_Lag1", [])
 
+    with st.expander("🔍 Dettaglio Scrematura Quantitativa V24.2 (Ritardi Selettivi a Tossicità)"):
+        c_f1, c_f2, c_f3 = st.columns(3)
+        with c_f1:
+            st.error(f"Filtro 1: Ultima Estrazione ({len(f1_last)} num - PRIORITARIO)")
+            st.code(f"{sorted(list(f1_last))}")
+        with c_f2:
+            st.warning(f"Filtro 2: 14 Meno Energetici ({len(f2_freq)} num)")
+            st.code(f"{sorted(list(f2_freq))}")
+        with c_f3:
+            st.info(f"Filtro 3: 14 a Massima Tossicità ({len(f3_rit)} num)")
+            st.code(f"{sorted(list(f3_rit))}")
+
+    # RADAR FASCE WYCKOFF
+    st.subheader("📡 Radar Casi Rari & Selettore Macro-Fasce Wyckoff")
+    df_radar = motore_radar_anomalie(df_full)
+    col_radar, col_valle = st.columns([2, 1])
+    with col_radar:
+        st.dataframe(df_radar, hide_index=True)
+    with col_valle:
+        st.write("**📊 Metriche Live delle Macro-Fasce (Ultime 137 estrazioni):**")
+        df_stats_print = pd.DataFrame([
+            {"Macro-Fascia": "BANCO [115, 170]", "Frequenza": stats_macro["BANCO"]["freq"], "Ritardo": stats_macro["BANCO"]["rit"]},
+            {"Macro-Fascia": "CUORE (170, 215]", "Frequenza": stats_macro["CUORE"]["freq"], "Ritardo": stats_macro["CUORE"]["rit"]},
+            {"Macro-Fascia": "TETTO (215, 270]", "Frequenza": stats_macro["TETTO"]["freq"], "Ritardo": stats_macro["TETTO"]["rit"]},
+        ])
+        st.dataframe(df_stats_print, hide_index=True)
+        scelta_macro = st.radio("Target Wyckoff:", ["BANCO [115, 170]", "CUORE (170, 215]", "TETTO (215, 270]"])
+        valle_target = (115, 170) if "BANCO" in scelta_macro else (170, 215) if "CUORE" in scelta_macro else (215, 270)
+
+    st.divider()
+    st.subheader("🗂 Honor Roll: Pool Superstiti & Nuclei di Risonanza")
+    pool_residuo = [n for n in scienza["pool_eletto"] if n not in blacklist]
+    
+    filtro_sincro = st.selectbox("🎯 APPLICA VALVOLA GEOMETRICA:", ["Nessuno", "Solo Under 45", "Solo Over 45", "Solo Pari", "Solo Dispari", "Solo Media (20-70)"])
+    st.write("**Pool Superstiti Nobili Statici:**")
+    st.code(f"{pool_residuo}")
+
+    # --- SIDEBAR: CONTROLLO STRATEGIA DI ANCORAGGIO D'IMBUTO ---
     st.sidebar.header("🎯 Parametri di Gioco")
     
-    opzioni_nuclei = ["Manuale"]
-    if scienza["nuclei_accelerati"]:
-        opzioni_nuclei += [f"{n[0]}-{n[1]}" for n in scienza["nuclei_accelerati"] if not any(num in blacklist for num in n)]
-        
-    scelta_acc = st.sidebar.selectbox("🔥 Carica Coppia Nucleo Accelerato:", opzioni_nuclei)
-    fisse_auto = [int(x) for x in scelta_acc.split("-")] if scelta_acc != "Manuale" else []
-
     sorgente_cardini = st.sidebar.radio(
         "Sorgente Punti di Ancoraggio (Cardini):", 
-        ["Fisse Classiche (Morsa)", "Usa Numeri dell'Imbuto (Anomalia 137x1)"]
+        ["Fisse Classiche (Morsa)", "Usa Imbuto Correlati Cascata (Lag-1 Espanso)"]
     )
     
-    if sorgente_cardini == "Usa Numeri dell'Imbuto (Anomalia 137x1)" and numeri_anomalia:
+    # Sincronizzazione dinamica dei cardini predefiniti
+    if sorgente_cardini == "Usa Imbuto Correlati Cascata (Lag-1 Espanso)" and numeri_anomalia:
+        # Seleziona i primi 2 numeri validi dell'imbuto dei correlati non in blacklist
         default_cardini = [n for n in numeri_anomalia if n not in blacklist][:2]
     else:
-        default_cardini = fisse_auto if fisse_auto else (pool_residuo[:2] if pool_residuo else [])
+        default_cardini = pool_residuo[:2] if pool_residuo else []
 
     cardini = st.sidebar.multiselect("Cardini Attivi (Fisse)", range(1, 91), default=default_cardini)
-    ampiezza_pool = st.sidebar.slider("Potenza di Espansione Popolo (Slider)", 15, 45, 25)
-    tipo_riduzione = st.sidebar.selectbox("Filtro Riduttore Ottimizzato", ["Nessuna", "Garanzia 4", "Garanzia 5"])
+    ampiezza_pool = st.sidebar.slider("Potenza di Espansione Popolo", 15, 45, 25)
+    tipo_riduzione = st.sidebar.selectbox("Filtro Riduttore", ["Nessuna", "Garanzia 4", "Garanzia 5"])
 
     target_h = df_full['H'].iloc[0:136].mean() * 0.985
     st.divider()
     m1, m2, m3 = st.columns(3)
     m1.metric("Bersaglio Rugosità H (Parisi)", f"{target_h:.5f}")
     m2.metric("Cluster Attivo", scienza.get("cluster_attivo", "Non rilevato"))
-    m3.metric("Filtro Totale Blacklist (V24.2)", f"{len(blacklist)} num")
+    m3.metric("Filtro Totale Blacklist", f"{len(blacklist)} num")
 
+    # --- INIEZIONE DINAMICA DEL POOL PER IL CALCOLO ---
     somma_fisse = sum(cardini)
     n_mancanti = 6 - len(cardini)
     media_target = (sum(valle_target)/2 - somma_fisse) / n_mancanti if n_mancanti > 0 else 0
     
     tutti_i_numeri = [n for n in range(1, 91) if n not in blacklist and n not in cardini]
     
-    bersagli_simpatia = cardini if cardini else pool_residuo
+    # Se la sorgente è impostata sull'imbuto dei correlati a cascata, iniettiamo i candidati determinati dal laboratorio
+    if sorgente_cardini == "Usa Imbuto Correlati Cascata (Lag-1 Espanso)" and numeri_anomalia:
+        basi_simpatia = [n for n in numeri_anomalia if n not in blacklist]
+    else:
+        basi_simpatia = cardini if cardini else pool_residuo
+        
+    # Calcolo della matrice simpatie basato sulla configurazione scelta
     simpatia_punteggi = {n: 0 for n in tutti_i_numeri}
-    cols_est = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6']
-    df_137_values = df_full.head(137)[cols_est].values
-    
-    if bersagli_simpatia:
-        for row in df_137_values:
-            presenza_bersagli = [b for b in bersagli_simpatia if b in row]
-            if presenza_bersagli:
+    if basi_simpatia:
+        for row in df_full.head(137)[['n1','n2','n3','n4','n5','n6']].values:
+            presenza = [b for b in basi_simpatia if b in row]
+            if presenza:
                 for n in row:
                     if n in simpatia_punteggi:
-                        simpatia_punteggi[n] += len(presenza_bersagli)
+                        simpatia_punteggi[n] += len(presenza)
 
     popolo = sorted(tutti_i_numeri, key=lambda x: (abs(x - media_target) * 1.5) - (simpatia_punteggi[x] * 2.0))
-    pool_f = sorted(list(set(cardini + pool_residuo + popolo[:ampiezza_pool - len(pool_residuo)])))
+    
+    # Unione finale atomica del pool di calcolo
+    if sorgente_cardini == "Usa Imbuto Correlati Cascata (Lag-1 Espanso)" and numeri_anomalia:
+        pool_f = sorted(list(set(cardini + basi_simpatia + popolo[:ampiezza_pool - len(basi_simpatia)])))
+    else:
+        pool_f = sorted(list(set(cardini + pool_residuo + popolo[:ampiezza_pool - len(pool_residuo)])))
 
-    st.subheader("🕵️ Analisi Preventiva dei Candidati Superstiti")
-    st.info(f"Prima della generazione, la morsa ha selezionato un set di **{len(pool_f)} numeri candidati** bilanciati per le medie Wyckoff e la coesione di simpatia.")
-    st.code(f"Numeri pronti al calcolo combinatorio: {pool_f}")
+    st.subheader("🕵️ Analisi Preventiva dei Candidati Superstiti (Pronti al Calcolo)")
+    st.code(f"Pool Combinatorio Attivo: {pool_f}")
 
     if st.button("🚀 GENERA ARROSTO SINCRONIZZATO V24"):
         sestine_nobili = []
@@ -335,51 +308,33 @@ try:
             s = sorted(list(comb))
             if all(f in s for f in cardini):
                 somma_s = sum(s)
-                
                 if (valle_target[0] <= somma_s <= valle_target[1]):
                     check_saturazione = any(sf[0] < somma_s <= sf[1] for sf in sature if sf[0] < 220)
-                    
                     if not check_saturazione:
                         if abs(calcola_rugosita(s) - target_h) < (target_h * 0.12):
                             if test_geometria_valvola(filtro_sincro, s):
                                 sestine_nobili.append(s)
-                            
             if i > 1500000: break
             if i % 25000 == 0: prog.progress(min((i+1)/len(combs) if len(combs)>0 else 1, 1.0))
         prog.empty()
 
+        # Corretto errore di battitura 'resultado' -> 'risultato'
         risultato = riduttore_garantito(sestine_nobili, 5 if "5" in tipo_riduzione else 4) if tipo_riduzione != "Nessuna" else sestine_nobili
 
         st.subheader("📄 Report Strategico di Selezione (V24.2)")
-        cr1, cr2 = st.columns(2)
-        with cr1:
-            st.markdown(f"""
-            **Configurazione Algoritmica V24.2:**
-            * **Valvola Geometrica Post-Calcolo**: {filtro_sincro}
-            * **Filtro 2 Frequenze**: Configurato su Decadimento Esponenziale 
-            * **Filtro 3 Ritardi**: Finestra d'Oro (15-26) Protetta dal taglio
-            * **Cardini Bloccati (Fisse)**: {cardini}
-            * **Macro-Fascia Selezionata**: {scelta_macro.split(':')[0]}
-            * **Intervallo di Somma Effettivo**: {valle_target[0]}-{valle_target[1]}
-            * **Media Richiesta per Incastro**: {int(media_target)}
-            """)
-        with cr2:
-            st.metric("Sestine Passate dalla Valvola", len(sestine_nobili))
-            st.metric("Sestine Superstiti Ottimizzate", len(risultato))
-
         if risultato:
             df_res = pd.DataFrame(risultato, columns=['N1','N2','N3','N4','N5','N6'])
             st.table(df_res.head(40))
-            st.download_button("💾 Esporta per Stampa (CSV)", df_res.to_csv(index=False).encode('utf-8'), "morsa_v24_2.csv", "text/csv")
         else:
-            st.error("Nessun incastro trovato. Modifica l'ampiezza dello slider della potenza o seleziona una macro-fascia Wyckoff più armonica.")
+            st.error("Nessun incastro geometrico trovato. Allarga la potenza del Popolo in sidebar o modifica i cardini.")
 
 except Exception as e:
     st.error(f"Errore generale: {e}")
 
+# --- SEZIONE INJECT DI CODA PER VISUALIZZAZIONE LAB ---
 def mostra_laboratorio_isolato_137_aggiornato(file_json, verdetto_segnale, numeri_anomalia, coppie_anomalia, dati_fasi, cardini):
     st.divider()
-    st.subheader("🔬 Laboratorio Quantistico: Analisi del Flusso Lineare (137x1)")
+    st.subheader("🔬 Laboratorio Quantistico: Analisi del Flusso Lineare Cascata Lag-1")
     
     if os.path.exists(file_json) and dati_fasi:
         if "🚨" in verdetto_segnale:
@@ -387,38 +342,31 @@ def mostra_laboratorio_isolato_137_aggiornato(file_json, verdetto_segnale, numer
         elif "⚠️" in verdetto_segnale:
             st.warning(f"**Stato Corrente:** {verdetto_segnale}")
         else:
-            st.success(f"**Stato Corrente:** {verdetto_segnale} (Nessuna memoria a corto raggio rilevata)")
+            st.success(f"**Stato Corrente:** {verdetto_segnale}")
             
-        st.caption(f"Campioni Archivio: `{dati_fasi['Configurazione_Segnale']['Passi_Totali_Archivio']}` numeri consecutivi | Finestra Mobile: `{dati_fasi['Configurazione_Segnale']['Finestra_Analisi_Passi']}` singoli passi.")
-        
         c_an_1, c_an_2 = st.columns(2)
         with c_an_1:
-            st.markdown("🎯 **Numeri Fisici dentro l'Imbuto (Top Frequenze in 137x1):**")
+            st.markdown("🎯 **Imbuto dei Correlati Dinamici di Cascata (Livello 1 + Livello 2 Prescelti):**")
             if numeri_anomalia:
                 st.code(f"{numeri_anomalia}")
                 sincronizzati = [c for c in cardini if c in numeri_anomalia]
                 if sincronizzati:
-                    st.success(f"🔗 **Sincronizzazione Rilevata!** I cardini {sincronizzati} stanno correndo dentro l'imbuto dell'anomalia.")
-                elif cardini:
-                    st.warning("⚠️ **Sfasamento Geometrico:** I cardini impostati non passano per l'imbuto dell'anomalia recente.")
+                    st.success(f"🔗 **Sincronizzazione Attiva!** I cardini impostati {sincronizzati} stanno pescando dall'imbuto dei correlati puri dell'ultima estrazione.")
             else:
-                st.code("Nessun numero dominante calcolato.")
+                st.code("Nessun numero calcolato.")
         with c_an_2:
-            st.markdown("🔄 **Coppie a Trascinamento Lineare Attivo (Lag 1 Ripetuti):**")
+            st.markdown("🔄 **Vettori di Accoppiamento Lineare (Diretto -> Secondo Livello):**")
             if coppie_anomalia:
                 st.code(f"{coppie_anomalia}")
-            else:
-                st.code("Nessuna coppia a Lag 1 ripetuta nella finestra recente.")
         
-        st.write("")
-        c_globale, c_stretta = st.columns(2)
-        with c_globale:
-            st.markdown("🌐 **Memoria Storica Cronica (44k):**")
+        c_g, c_s = st.columns(2)
+        with c_g:
+            st.markdown("🌐 **Memoria Storica (44k):**")
             st.json(dati_fasi.get("Flusso_Globale_44k", {}))
-        with c_stretta:
-            st.markdown("⏱️ **Dinamica Recente (Ultimi 137 Numeri):**")
+        with c_s:
+            st.markdown("⏱️ **Finestra Stretta Recente (137 passi):**")
             st.json(dati_fasi.get("Finestra_Stretta_137", {}))
     else:
-        st.info("In attesa del primo aggiornamento del report asincrono contenente la mappatura dell'imbuto da parte di GitHub Actions.")
+        st.info("In attesa delle modifiche o della scrittura del file report_fasi.json da parte di GitHub Actions.")
 
 mostra_laboratorio_isolato_137_aggiornato(file_json, verdetto_segnale, numeri_anomalia, coppie_anomalia, dati_fasi, cardini)
