@@ -1,74 +1,41 @@
 {
     "Configurazione_Segnale": {
-        "Passi_Totali_Archivio": 43890,
+        "Passi_Totali_Archivio": 43816,
         "Finestra_Analisi_Passi": 137
     },
-    "Flusso_Globale_44k": {
-        "ADF_pvalue": 0.0,
-        "KPSS_pvalue": 0.1,
-        "Entropia_Shannon": 4.4988,
-        "Autocorrelazione_Lag1": 0.27538,
-        "Autocorrelazione_Lag2": -0.17622
-    },
-    "Finestra_Stretta_137": {
-        "ADF_pvalue": 0.00593,
-        "KPSS_pvalue": 0.1,
-        "Entropia_Shannon": 4.1129,
-        "Autocorrelazione_Lag1": 0.31641,
-        "Autocorrelazione_Lag2": -0.13228
-    },
-    "Verdetto_Struttura": "\ud83d\udea8 ANOMALIA REGISTRATA: La finestra degli ultimi 137 numeri rompe la barriera del rumore bianco!",
     "Contenuto_Imbuto": {
         "Numeri_Dominanti_Imbuto": [
-            28,
-            58,
-            7,
-            13,
-            57,
-            60,
-            90,
-            12,
-            27,
-            31,
-            43,
-            47,
-            56,
-            68,
-            69
+            4,
+            32,
+            45,
+            49,
+            51,
+            55,
+            63,
+            65,
+            74,
+            81,
+            83,
+            85
         ],
         "Coppie_Trascinamento_Lag1": [
-            [
-                13,
-                17
-            ],
-            [
-                77,
-                18
-            ],
-            [
-                42,
-                43
-            ],
-            [
-                7,
-                12
-            ],
-            [
-                12,
-                60
-            ],
-            [
-                60,
-                69
-            ],
-            [
-                69,
-                89
-            ],
-            [
-                89,
-                90
-            ]
+            "32-51",
+            "45-85",
+            "49-81",
+            "55-74",
+            "83-65",
+            "63-4"
         ]
+    },
+    "Verdetto_Struttura": "\ud83d\udea8 ANOMALIA REGISTRATA: La memoria a cascata di Lag-1 rompe la barriera del rumore caotico!",
+    "Flusso_Globale_44k": {
+        "ADF_Stat": -28.77677,
+        "ADF_pvalue": 0.0,
+        "Autocorrelazione_Lag1": 0.27373,
+        "Autocorrelazione_Lag2": -0.17868
+    },
+    "Finestra_Stretta_137": {
+        "Autocorrelazione_Lag1": 0.27238,
+        "Autocorrelazione_Lag2": -0.17851
     }
 }
