@@ -1,41 +1,41 @@
 {
     "Configurazione_Segnale": {
-        "Passi_Totali_Archivio": 43816,
+        "Passi_Totali_Archivio": 43822,
         "Finestra_Analisi_Passi": 137
     },
     "Contenuto_Imbuto": {
         "Numeri_Dominanti_Imbuto": [
-            4,
             32,
+            40,
             45,
             49,
             51,
             55,
-            63,
-            65,
+            68,
             74,
+            79,
             81,
             83,
             85
         ],
         "Coppie_Trascinamento_Lag1": [
-            "32-51",
-            "45-85",
-            "49-81",
+            "49-51",
+            "32-85",
+            "45-40",
+            "79-68",
             "55-74",
-            "83-65",
-            "63-4"
+            "83-81"
         ]
     },
     "Verdetto_Struttura": "\ud83d\udea8 ANOMALIA REGISTRATA: La memoria a cascata di Lag-1 rompe la barriera del rumore caotico!",
     "Flusso_Globale_44k": {
-        "ADF_Stat": -28.77677,
+        "ADF_Stat": -28.76374,
         "ADF_pvalue": 0.0,
-        "Autocorrelazione_Lag1": 0.27373,
-        "Autocorrelazione_Lag2": -0.17868
+        "Autocorrelazione_Lag1": 0.27379,
+        "Autocorrelazione_Lag2": -0.17855
     },
     "Finestra_Stretta_137": {
-        "Autocorrelazione_Lag1": 0.27238,
-        "Autocorrelazione_Lag2": -0.17851
+        "Autocorrelazione_Lag1": 0.27538,
+        "Autocorrelazione_Lag2": -0.17165
     }
 }
