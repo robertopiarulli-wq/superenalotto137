@@ -3,9 +3,7 @@ import os
 import json
 import numpy as np
 import pandas as pd
-import scipy.stats as stats
-from statsmodels.tsa.stattools import adfuller, kpss
-from statsmodels.tsa.stattools import acf
+from statsmodels.tsa.stattools import adfuller, acf
 from supabase import create_client
 
 # --- REPERIMENTO CREDENZIALI ---
@@ -38,7 +36,7 @@ if not URL or not KEY:
 supabase = create_client(URL, KEY)
 
 def esegui_laboratorio():
-    print("🔬 Avvio Laboratorio Quantistico: Morsa Sequenziale a Cascata Lag-1...")
+    print("🔬 Avvio Laboratorio Quantistico: Morsa Sequenziale a Cascata Lag-1 (Safe-Type)...")
     
     # Scarichiamo tutto l'archivio storico per mappare le transizioni reali
     res = supabase.table("estrazioni").select("*").order("data_estrazione", desc=False).execute()
@@ -52,39 +50,46 @@ def esegui_laboratorio():
     sestine_cronologiche = df_storico[cols].values
     
     # ----------------------------------------------------------------------
-    # FASE 1: COSTRUZIONE MATRICE DI TRASCINAMENTO DI TUTTI I 90 NUMERI (LAG-1)
+    # FASE 1: COSTRUZIONE MATRICE DI TRASCINAMENTO LAG-1 (SAFE TYPE CASTING)
     # ----------------------------------------------------------------------
-    # Struttura per tracciare quante volte il numero Y è uscito subito dopo il numero X
     matrice_trascinamento = {x: {y: 0 for y in range(1, 91)} for x in range(1, 91)}
     
     for i in range(len(sestine_cronologiche) - 1):
         sestina_attuale = sestine_cronologiche[i]
         sestina_successiva = sestine_cronologiche[i+1]
         
-        for n_attuale in sestina_attuale:
-            for n_successivo in sestina_successiva:
-                matrice_trascinamento[n_attuale][n_successivo] += 1
+        for n_att_raw in sestina_attuale:
+            for n_succ_raw in sestina_successiva:
+                try:
+                    # Forza il tipo a intero standard Python ed esclude anomalie/zeri
+                    n_attuale = int(n_att_raw)
+                    n_successivo = int(n_succ_raw)
+                    
+                    if 1 <= n_attuale <= 90 and 1 <= n_successivo <= 90:
+                        matrice_trascinamento[n_attuale][n_successivo] += 1
+                except (ValueError, TypeError, KeyError):
+                    continue  # Salta l'inserimento in caso di dati sporchi o chiavi fuori range
 
     # ----------------------------------------------------------------------
     # FASE 2: APPLICAZIONE DELL'IMBUTO SULL'ULTIMA ESTRAZIONE REALE
     # ----------------------------------------------------------------------
-    ultima_sestina = sestine_cronologiche[-1]
-    print(f"🎯 Ultima estrazione rilevata come innesco: {list(ultima_sestina)}")
+    # Assicuriamoci che l'ultima sestina sia convertita in interi puliti
+    ultima_sestina = [int(n) for n in sestine_cronologiche[-1] if 1 <= int(n) <= 90]
+    print(f"🎯 Ultima estrazione rilevata come innesco: {ultima_sestina}")
     
-    # Estrarre i correlati diretti condizionati dall'ultima estrazione
     punteggi_diretti = {n: 0 for n in range(1, 91)}
     for n_ancora in ultima_sestina:
-        for corr, peso in matrice_trascinamento[n_ancora].items():
-            punteggi_diretti[corr] += peso
+        if n_ancora in matrice_trascinamento:
+            for corr, peso in matrice_trascinamento[n_ancora].items():
+                punteggi_diretti[corr] += peso
             
-    # Escludiamo i numeri dell'ultima estrazione stessa dai correlati per evitare loop statici
+    # Escludiamo i numeri dell'ultima estrazione stessa dai correlati diretti
     for n in ultima_sestina:
         if n in punteggi_diretti:
             punteggi_diretti[n] = 0
             
     serie_diretti = pd.Series(punteggi_diretti)
-    # Identifichiamo i Correlati Diretti Dominanti (I primi 6 estratti dall'imbuto di primo livello)
-    correlati_diretti_prescelti = list(serie_diretti.nlargest(6).index)
+    correlati_diretti_prescelti = [int(x) for x in serie_diretti.nlargest(6).index]
     print(f"🔗 Correlati Diretti Prescelti (Livello 1): {correlati_diretti_prescelti}")
 
     # ----------------------------------------------------------------------
@@ -92,28 +97,32 @@ def esegui_laboratorio():
     # ----------------------------------------------------------------------
     punteggi_secondo_livello = {n: 0 for n in range(1, 91)}
     for n_prescelto in correlati_diretti_prescelti:
-        for corr_2, peso_2 in matrice_trascinamento[n_prescelto].items():
-            punteggi_secondo_livello[corr_2] += peso_2
+        if n_prescelto in matrice_trascinamento:
+            for corr_2, peso_2 in matrice_trascinamento[n_prescelto].items():
+                punteggi_secondo_livello[corr_2] += peso_2
             
-    # Pulizia da sovrascritture logiche (eliminiamo l'innesco di partenza)
-    for n in ultima_sestina:
+    # Pulizia logica: azzeriamo i numeri dell'innesco originale e i primi correlati
+    for n in ultima_sestina + correlati_diretti_prescelti:
         if n in punteggi_secondo_livello:
             punteggi_secondo_livello[n] = 0
             
     serie_secondo_livello = pd.Series(punteggi_secondo_livello)
-    # Isoliaino i correlati dei prescelti (Livello 2)
-    correlati_dei_prescelti = list(serie_secondo_livello.nlargest(6).index)
+    correlati_dei_prescelti = [int(x) for x in serie_secondo_livello.nlargest(6).index]
     print(f"🌊 Correlati dei Prescelti Iniettati (Livello 2): {correlati_dei_prescelti}")
 
-    # Unione atomica finale mantenendo rigorosamente la memoria del correlato attivo
+    # Unione finale salvando la memoria del correlato attivo
     imbuto_finale_espanso = sorted(list(set(correlati_diretti_prescelti + correlati_dei_prescelti)))
 
     # ----------------------------------------------------------------------
-    # FASE 4: CALCOLO DELLE METRICHE DI SEGNALE SU FINESTRA STRETTA 137
+    # FASE 4: METRICHE DI SEGNALE SU FINESTRA STRETTA 137
     # ----------------------------------------------------------------------
     df_137 = df_storico.tail(137).copy()
-    flusso_completo = df_storico[cols].values.flatten()
-    flusso_finestra = df_137[cols].values.flatten()
+    flusso_completo = df_storico[cols].values.flatten().astype(int)
+    flusso_finestra = df_137[cols].values.flatten().astype(int)
+    
+    # Filtro di sicurezza sui flussi lineari per evitare zeri nelle statistiche acf
+    flusso_completo = flusso_completo[(flusso_completo >= 1) & (flusso_completo <= 90)]
+    flusso_finestra = flusso_finestra[(flusso_finestra >= 1) & (flusso_finestra <= 90)]
     
     report = {
         "Configurazione_Segnale": {
@@ -130,12 +139,10 @@ def esegui_laboratorio():
     }
     
     try:
-        # Analisi ADF (Augmented Dickey-Fuller) per la stazionarietà del flusso nel tempo
         adf_res = adfuller(flusso_completo)
         report["Flusso_Globale_44k"]["ADF_Stat"] = round(float(adf_res[0]), 5)
         report["Flusso_Globale_44k"]["ADF_pvalue"] = round(float(adf_res[1]), 5)
         
-        # Calcolo Autocorrelazioni sequenziali (ACF)
         acf_44k = acf(flusso_completo, nlags=5)
         acf_137 = acf(flusso_finestra, nlags=5)
         
@@ -151,7 +158,6 @@ def esegui_laboratorio():
     except Exception as e:
         print(f"⚠️ Errore calcolo metriche ausiliarie: {e}")
 
-    # Salvataggio del report unificato per Streamlit
     cartella = "laboratorio_segnale"
     if not os.path.exists(cartella):
         os.makedirs(cartella)
@@ -160,7 +166,7 @@ def esegui_laboratorio():
     with open(file_path, "w") as f:
         json.dump(report, f, indent=4)
         
-    print(f"💾 Report salvato con successo in {file_path}. Righe imbuto espanso: {imbuto_finale_espanso}")
+    print(f"💾 Report salvato in {file_path}. Righe imbuto espanso: {imbuto_finale_espanso}")
 
 if __name__ == "__main__":
     esegui_laboratorio()
